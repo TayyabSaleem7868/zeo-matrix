@@ -19,7 +19,7 @@ interface PostCardProps {
     user_id: string;
     content: string;
     image_url: string;
-    media?: { url: string; type: "image" | "video" }[];
+    media?: { url: string; type: "image" | "video" | "pdf" | "doc" | "docx" | "zip" | "rar" | "other"; name?: string }[];
     created_at: string;
   };
   profile: {
@@ -143,7 +143,7 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <p className="font-display font-bold text-foreground group-hover:text-primary transition-colors text-[13px] sm:text-sm tracking-tight text-white/90">
+              <p className="font-display font-bold text-foreground group-hover:text-primary transition-colors text-[13px] sm:text-sm tracking-tight">
                 {profile?.display_name || profile?.username?.split("@")[0] || "Unknown"}
               </p>
               {profile?.is_verified && (

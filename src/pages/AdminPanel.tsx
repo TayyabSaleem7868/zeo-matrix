@@ -72,10 +72,8 @@ const AdminPanel = () => {
     };
 
     const toggleVerification = async (userId: string, currentStatus: boolean) => {
-        const { error } = await supabase
-            .from("profiles")
-            .update({ is_verified: !currentStatus } as any)
-            .eq("user_id", userId);
+        const { error } = await (supabase as any)
+            .rpc("set_user_verified", { target_user_id: userId, verified: !currentStatus });
 
         if (error) {
             toast({ title: "Error", description: error.message, variant: "destructive" });

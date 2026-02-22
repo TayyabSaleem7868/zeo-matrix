@@ -7,7 +7,8 @@ import VideoPlayer from "./VideoPlayer";
 
 interface MediaItem {
     url: string;
-    type: "image" | "video";
+    type: "image" | "video" | "pdf" | "doc" | "docx" | "zip" | "rar" | "other";
+    name?: string;
 }
 
 interface MediaViewerProps {
