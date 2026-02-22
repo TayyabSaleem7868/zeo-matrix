@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 15% 5%;
+    --foreground: 220 20% 95%;
+
+    --card: 240 12% 8%;
+    --card-foreground: 220 20% 95%;
+
+    --popover: 240 12% 8%;
+    --popover-foreground: 220 20% 95%;
+
+    --primary: 217 91% 60%;
+    /* Refined Royal Blue */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 12%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 220 15% 10%;
+    --muted-foreground: 215 15% 65%;
+
+    --accent: 195 100% 50%;
+    /* Pure Cyan */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 15%;
+    --input: 220 20% 15%;
+    --ring: 217 91% 60%;
+
+    --radius: 1rem;
+
+    --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 60%) 0%, hsl(195, 100%, 50%) 100%);
+    --gradient-subtle: linear-gradient(135deg, hsl(217, 91%, 60%, 0.15), hsl(195, 100%, 50%, 0.05));
+    --gradient-card: linear-gradient(145deg, hsl(220, 20%, 10%), hsl(220, 20%, 5%));
+    --shadow-glow: 0 0 25px hsl(217, 91%, 60%, 0.25), 0 0 50px hsl(195, 100%, 50%, 0.1);
+    --shadow-card: 0 20px 50px -12px hsl(0, 0%, 0%, 0.5);
+
+    --sidebar-background: 240 15% 5%;
+    --sidebar-foreground: 220 20% 90%;
+    --sidebar-primary: 280 80% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 10% 12%;
+    --sidebar-accent-foreground: 220 20% 90%;
+    --sidebar-border: 240 10% 16%;
+    --sidebar-ring: 280 80% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .gradient-bg {
+    background-image: var(--gradient-primary);
+  }
+
+  .gradient-border {
+    position: relative;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--gradient-primary);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .glass {
+    @apply backdrop-blur-xl;
+    background: hsl(240, 12%, 8%, 0.7);
+  }
+
+  .glow {
+    box-shadow: var(--shadow-glow);
+  }
+}

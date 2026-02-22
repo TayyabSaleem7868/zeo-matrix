@@ -1,0 +1,396 @@
+import { useState, useEffect, useCallback } from "react";
+import { useParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import PostCard from "@/components/PostCard";
+import { useToast } from "@/hooks/use-toast";
+import { Camera, Trash2, AlertTriangle, CheckCircle } from "lucide-react";
+import { useRef } from "react";
+import AvatarCropper from "@/components/AvatarCropper";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+interface ProfileData {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  cover_url: string | null;
+  is_verified?: boolean;
+}
+
+const Profile = () => {
+  const { userId } = useParams();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [editBio, setEditBio] = useState("");
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const avatarRef = useRef<HTMLInputElement>(null);
+  const coverRef = useRef<HTMLInputElement>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const isOwner = user?.id === userId;
+
+  const fetchData = useCallback(async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Fetch profile and stats in parallel
+      const [profileRes, postsRes, followersRes, followingRes] = await Promise.all([
+        supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("posts").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+        supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", userId),
+        supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", userId)
+      ]);
+
+      if (profileRes.data) {
+        setProfile(profileRes.data);
+        setEditBio(profileRes.data.bio || "");
+        setEditDisplayName(profileRes.data.display_name || "");
+      }
+
+      setFollowersCount(followersRes.count ?? 0);
+      setFollowingCount(followingRes.count ?? 0);
+
+      if (postsRes.data) {
+        const postData = postsRes.data;
+        const postIds = postData.map(p => p.id);
+
+        // Only fetch likes if there are posts
+        if (postIds.length > 0) {
+          const { data: likesData } = await supabase.from("likes").select("post_id, user_id").in("post_id", postIds);
+
+          const likeCountsMap = new Map();
+          const userLikesSet = new Set();
+
+          likesData?.forEach(like => {
+            likeCountsMap.set(like.post_id, (likeCountsMap.get(like.post_id) || 0) + 1);
+            if (user && like.user_id === user.id) {
+              userLikesSet.add(like.post_id);
+            }
+          });
+
+          setPosts(postData.map(p => ({
+            ...p,
+            likeCount: likeCountsMap.get(p.id) || 0,
+            isLiked: userLikesSet.has(p.id)
+          })));
+        } else {
+          setPosts([]);
+        }
+      }
+
+      if (user && user.id !== userId) {
+        const { data } = await supabase.from("follows").select("id").eq("follower_id", user.id).eq("following_id", userId).maybeSingle();
+        setIsFollowing(!!data);
+      }
+    } catch (error) {
+      console.error("Error fetching profile data:", error);
+      toast({ title: "Error", description: "Failed to load profile data", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, user, toast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const toggleFollow = async () => {
+    if (!user || !userId) return;
+    if (isFollowing) {
+      await supabase.from("follows").delete().eq("follower_id", user.id).eq("following_id", userId);
+      setIsFollowing(false);
+      setFollowersCount((c) => c - 1);
+    } else {
+      await supabase.from("follows").insert({ follower_id: user.id, following_id: userId });
+      setIsFollowing(true);
+      setFollowersCount((c) => c + 1);
+    }
+  };
+
+  const saveProfile = async () => {
+    if (!user) return;
+    const { error } = await supabase.from("profiles").update({ display_name: editDisplayName, bio: editBio }).eq("user_id", user.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      setEditing(false);
+      fetchData();
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.rpc("delete_user_account");
+      if (error) throw error;
+
+      await supabase.auth.signOut();
+      toast({ title: "Account Deleted", description: "Your account has been successfully removed." });
+      window.location.href = "/";
+    } catch (error: any) {
+      toast({ title: "Deletion failed", description: error.message, variant: "destructive" });
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}/cover.${ext}`;
+    await supabase.storage.from("avatars").upload(path, file, { upsert: true }); // Using avatars bucket for simplicity or can use 'covers'
+    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+    await supabase.from("profiles").update({ cover_url: data.publicUrl }).eq("user_id", user.id);
+    fetchData();
+  };
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result as string);
+    reader.readAsDataURL(file);
+    // Reset so the same file can be re-selected
+    e.target.value = "";
+  };
+
+  const handleCropDone = async (blob: Blob) => {
+    if (!user) return;
+    setCropSrc(null);
+    const path = `${user.id}/avatar.jpg`;
+    await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+    // Bust cache by appending timestamp
+    const url = `${data.publicUrl}?t=${Date.now()}`;
+    await supabase.from("profiles").update({ avatar_url: url }).eq("user_id", user.id);
+    fetchData();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
+        <h2 className="text-2xl font-display font-bold text-foreground mb-2">Profile not found</h2>
+        <p className="text-muted-foreground">The user you are looking for doesn't exist.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-6">
+      {/* Avatar Cropper Modal */}
+      {cropSrc && (
+        <AvatarCropper
+          imageSrc={cropSrc}
+          onCropDone={handleCropDone}
+          onCancel={() => setCropSrc(null)}
+        />
+      )}
+      {/* Cover area */}
+      <div className="relative mb-8 sm:mb-12">
+        {/* Banner Background */}
+        <div className="h-40 sm:h-48 md:h-52 rounded-2xl overflow-hidden relative group/cover bg-gradient-to-br from-primary/30 to-accent/30 shadow-inner">
+          {profile.cover_url ? (
+            <img src={profile.cover_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full" />
+          )}
+
+          {isOwner && (
+            <button
+              onClick={() => coverRef.current?.click()}
+              className="absolute inset-0 bg-black/40 opacity-0 group-hover/cover:opacity-100 flex items-center justify-center transition-all duration-300 z-10"
+            >
+              <div className="p-3 rounded-full bg-white/20 backdrop-blur-md border border-white/30 shadow-xl">
+                <Camera className="w-6 h-6 text-white" />
+              </div>
+            </button>
+          )}
+          <input ref={coverRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+        </div>
+
+        {/* Profile Pic - Refined border and positioning */}
+        <div className="absolute -bottom-6 sm:-bottom-8 left-4 sm:left-6 z-30">
+          <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full border-[5px] border-background bg-background overflow-hidden shadow-xl flex items-center justify-center">
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full gradient-bg flex items-center justify-center">
+                <span className="text-primary-foreground font-display font-bold text-2xl sm:text-3xl">
+                  {(profile.display_name || profile.username || "Z")[0].toUpperCase()}
+                </span>
+              </div>
+            )}
+            {isOwner && (
+              <button
+                onClick={() => avatarRef.current?.click()}
+                className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 flex items-center justify-center transition-all duration-300 group/avatar"
+              >
+                <div className="p-2 rounded-full bg-white/20 backdrop-blur-sm border border-white/30">
+                  <Camera className="w-5 h-5 text-white" />
+                </div>
+              </button>
+            )}
+            <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-8 pt-2">
+        <div className="flex items-start justify-between">
+          <div className="space-y-0.5">
+            {editing ? (
+              <Input value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} className="mb-2 max-w-xs h-10 font-bold" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-display font-bold text-white tracking-tight">
+                  {profile.display_name || profile.username?.split("@")[0]}
+                </h1>
+                {profile.is_verified && (
+                  <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500 fill-blue-500/20" />
+                )}
+              </div>
+            )}
+            <p className="text-[15px] font-medium text-muted-foreground">
+              @{profile.username?.split("@")[0]}
+            </p>
+          </div>
+          <div className="pt-2">
+            {isOwner ? (
+              editing ? (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setEditing(false)} className="rounded-full px-4 border-border/60">Cancel</Button>
+                  <Button variant="hero" size="sm" onClick={saveProfile} className="rounded-full px-6 shadow-glow">Save</Button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="rounded-full px-5 border-border/60 font-bold hover:bg-secondary/50">Edit Profile</Button>
+              )
+            ) : (
+              <Button variant={isFollowing ? "outline" : "hero"} size="sm" onClick={toggleFollow} className="rounded-full px-8 font-bold">
+                {isFollowing ? "Unfollow" : "Follow"}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {editing ? (
+          <div className="space-y-4 mt-4">
+            <Textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} placeholder="Tell us about yourself..." className="rounded-xl border-border/40 focus:border-primary/50" />
+
+            <div className="p-4 rounded-2xl border border-destructive/20 bg-destructive/5">
+              <h3 className="text-xs font-bold text-destructive mb-2 uppercase tracking-widest flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5" /> Danger Zone
+              </h3>
+              <p className="text-[11px] text-muted-foreground mb-4">Deleting your account is permanent and cannot be undone.</p>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="w-full sm:w-auto h-9 font-bold rounded-xl"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Delete Account
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="bg-card border-border/40 border-2 rounded-3xl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                      <AlertTriangle className="w-6 h-6 text-destructive" /> Permanent Deletion
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-muted-foreground text-sm pt-2">
+                      Are you absolutely sure? This will permanently remove your
+                      entire presence, posts, and data from Zeo Matrix.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter className="pt-4 gap-2 sm:gap-0">
+                    <AlertDialogCancel className="bg-secondary text-foreground hover:bg-secondary/80 rounded-2xl px-6 border-0">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAccount}
+                      className="bg-destructive text-white hover:bg-destructive/90 transition-all font-bold rounded-2xl px-8"
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? "Deleting..." : "Delete Permanently"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+        ) : (
+          profile.bio ? (
+            <p className="text-sm sm:text-[15px] leading-relaxed text-foreground mt-4 max-w-lg">{profile.bio}</p>
+          ) : (
+            isOwner && <p className="text-sm text-muted-foreground mt-4 italic">No bio added yet.</p>
+          )
+        )}
+
+        <div className="flex flex-wrap gap-6 mt-6 pb-2">
+          <div className="flex gap-1.5 items-baseline">
+            <span className="text-base font-bold text-foreground tracking-tight">{followingCount}</span>
+            <span className="text-sm text-muted-foreground font-medium">Following</span>
+          </div>
+          <div className="flex gap-1.5 items-baseline">
+            <span className="text-base font-bold text-foreground tracking-tight">{followersCount}</span>
+            <span className="text-sm text-muted-foreground font-medium">Followers</span>
+          </div>
+          <div className="flex gap-1.5 items-baseline">
+            <span className="text-base font-bold text-foreground tracking-tight">{posts.length}</span>
+            <span className="text-sm text-muted-foreground font-medium">Posts</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {posts.map((post) => (
+          <PostCard
+            key={post.id}
+            post={post}
+            profile={profile}
+            onDelete={fetchData}
+            initialLiked={post.isLiked}
+            initialLikeCount={post.likeCount}
+          />
+        ))}
+        {posts.length === 0 && (
+          <p className="text-center py-12 text-muted-foreground">No posts yet.</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Profile;
