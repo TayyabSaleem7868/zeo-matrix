@@ -83,10 +83,7 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
 
         const { data: urlData } = supabase.storage.from("posts").getPublicUrl(path);
   mediaUrls.push({ url: urlData.publicUrl, type: item.type, name: item.file.name });
-      }
-
-      // We still use image_url for single image compatibility, 
-      // but store everything in the 'media' column (JSONB)
+      }
       const { error } = await supabase.from("posts").insert({
         user_id: user.id,
         content: content.trim(),

@@ -47,9 +47,7 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, emblaApi]);
-
-    // Pause all background feed videos when viewer opens
+    }, [isOpen, emblaApi]);
     useEffect(() => {
         if (isOpen) {
             document.querySelectorAll<HTMLVideoElement>("video").forEach(v => {
@@ -58,8 +56,7 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
                     v.dataset.wasPlaying = "true";
                 }
             });
-        } else {
-            // Resume any that were playing before the viewer opened
+        } else {
             document.querySelectorAll<HTMLVideoElement>("video").forEach(v => {
                 if (v.dataset.wasPlaying === "true") {
                     delete v.dataset.wasPlaying;
@@ -88,7 +85,7 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
             className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-300"
             onClick={onClose}
         >
-            {/* Header */}
+            {}
             <div className="absolute top-0 left-0 right-0 p-4 sm:p-6 flex items-center justify-between z-[110] bg-gradient-to-b from-black/70 to-transparent" onClick={(e) => e.stopPropagation()}>
                 <div className="px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white text-xs font-bold tracking-widest hidden sm:block">
                     {currentIndex + 1} / {media.length}
@@ -113,7 +110,7 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
                 </div>
             </div>
 
-            {/* Main Content */}
+            {}
             <div className="relative w-full h-full flex items-center justify-center overflow-hidden" ref={emblaRef} onClick={(e) => e.stopPropagation()}>
                 <div className="flex h-full w-full">
                     {media.map((item, idx) => (
@@ -140,7 +137,7 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
                 </div>
             </div>
 
-            {/* Navigation Controls */}
+            {}
             {media.length > 1 && (
                 <>
                     <Button
@@ -162,14 +159,14 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
                 </>
             )}
 
-            {/* Mobile Pagination */}
+            {}
             <div className="absolute bottom-28 sm:bottom-32 flex lg:hidden gap-1.5 z-50">
                 {media.map((_, i) => (
                     <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${i === currentIndex ? "bg-white w-4 shadow-glow" : "bg-white/30"}`} />
                 ))}
             </div>
 
-            {/* Thumbnails Strip */}
+            {}
             {media.length > 1 && (
                 <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-3 px-6 overflow-x-auto pb-4 scrollbar-none z-[110]" onClick={(e) => e.stopPropagation()}>
                     {media.map((item, idx) => (

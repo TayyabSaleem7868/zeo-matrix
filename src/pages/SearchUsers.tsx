@@ -2,9 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
-import { Link } from "react-router-dom";
-
-// Suggestions section for recently registered users (shown as "Suggested For You")
+import { Link } from "react-router-dom";
 const SuggestionsSection = () => {
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +90,7 @@ const SearchUsers = () => {
         />
       </div>
 
-      {/* Suggestions section */}
+      {}
       <SuggestionsSection />
 
       <div className="space-y-2 mt-8">

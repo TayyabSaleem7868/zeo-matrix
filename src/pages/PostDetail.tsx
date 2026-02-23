@@ -14,9 +14,7 @@ const PostDetail = () => {
     useEffect(() => {
         const fetchPost = async () => {
             if (!postId) return;
-            setLoading(true);
-
-            // Fetch post
+            setLoading(true);
             const { data: postData, error: postError } = await supabase
                 .from("posts")
                 .select("*")
@@ -27,9 +25,7 @@ const PostDetail = () => {
                 console.error("Error fetching post:", postError);
                 setLoading(false);
                 return;
-            }
-
-            // Fetch likes and user status
+            }
             const { data: likesData } = await supabase
                 .from("likes")
                 .select("user_id")
@@ -41,9 +37,7 @@ const PostDetail = () => {
                 ...postData,
                 likeCount: likesData?.length || 0,
                 isLiked: likesData?.some(l => l.user_id === userData.user?.id)
-            };
-
-            // Fetch profile
+            };
             const { data: profileData } = await (supabase
                 .from("profiles")
                 .select("*, is_verified") as any)

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, User, LogOut, Search } from "lucide-react";
+import { Home, User, LogOut, Search, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const AppSidebar = () => {
@@ -10,6 +10,7 @@ const AppSidebar = () => {
     { to: "/feed", icon: Home, label: "Feed" },
     { to: "/search", icon: Search, label: "Search" },
     { to: `/profile/${user?.id}`, icon: User, label: "Profile" },
+    { to: "/notifications", icon: Bell, label: "Notifications" },
   ];
 
   return (

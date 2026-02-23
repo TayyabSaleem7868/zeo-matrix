@@ -34,9 +34,16 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
     const [replyContent, setReplyContent] = useState("");
     const [loading, setLoading] = useState(false);
 
+    const getWarningsCount = async () => {
+        if (!user) return 0;
+        const { data, error } = await (supabase as any).rpc("get_my_spam_warnings_count", { p_window_hours: 24 });
+        if (error) return 0;
+        return (data as number) ?? 0;
+    };
+
     const fetchComments = async () => {
-        const { data, error } = await supabase
-            .from("comments")
+                const { data, error } = await (supabase
+                        .from("comments" as any) as any)
             .select(`
         *,
         profiles (
@@ -50,8 +57,7 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
 
         if (error) {
             console.error("Error fetching comments:", error);
-        } else {
-            // Map 'profiles' to 'profile' for component consistency
+        } else {
             const mappedData = (data as any[]).map(c => ({
                 ...c,
                 profile: c.profiles
@@ -61,9 +67,7 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
     };
 
     useEffect(() => {
-        fetchComments();
-
-        // Subscribe to real-time updates
+        fetchComments();
         const channel = supabase
             .channel(`comments-${postId}`)
             .on(
@@ -83,19 +87,51 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
         const content = parentId ? replyContent : newComment;
         if (!user || !content.trim() || loading) return;
 
-        setLoading(true);
-        const { error } = await supabase
-            .from("comments")
+        setLoading(true);
+        const beforeWarnings = await getWarningsCount();
+
+        const { data: inserted, error } = await (supabase
+            .from("comments" as any) as any)
             .insert({
                 user_id: user.id,
                 post_id: postId,
                 content: content.trim(),
                 parent_id: parentId
-            });
+            })
+            .select("id")
+            .maybeSingle();
 
         if (error) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
-        } else {
+        } else {
+            let wasDeletedByGuard = false;
+            if (!inserted?.id) {
+                wasDeletedByGuard = true;
+            } else {
+                const { data: stillThere } = await (supabase
+                    .from("comments" as any) as any)
+                    .select("id")
+                    .eq("id", inserted.id)
+                    .maybeSingle();
+
+                if (!stillThere?.id) wasDeletedByGuard = true;
+            }
+
+            if (wasDeletedByGuard) {
+                const afterWarnings = await getWarningsCount();
+                const effectiveWarnings = Math.min(3, Math.max(beforeWarnings, afterWarnings));
+                const remaining = Math.max(0, 3 - effectiveWarnings);
+
+                toast({
+                    title: "Spam warning",
+                    description:
+                        remaining > 0
+                            ? `Your comment was removed as spam. Warning ${effectiveWarnings}/3. ${remaining} left.`
+                            : `Your comment was removed as spam. Warning ${effectiveWarnings}/3. You’ve been flagged for admin review.`,
+                    variant: "destructive",
+                });
+            }
+
             if (parentId) {
                 setReplyContent("");
                 setReplyTo(null);
@@ -108,8 +144,8 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
     };
 
     const handleDelete = async (commentId: string) => {
-        const { error } = await supabase
-            .from("comments")
+        const { error } = await (supabase
+            .from("comments" as any) as any)
             .delete()
             .eq("id", commentId);
 
@@ -188,7 +224,7 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
                         </form>
                     )}
 
-                    {/* Render child comments */}
+                    {}
                     {comments.filter(c => c.parent_id === comment.id).map(reply => renderComment(reply, true))}
                 </div>
             </div>

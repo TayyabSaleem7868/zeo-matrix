@@ -7,13 +7,97 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+
+
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
+      comment_spam_warnings: {
+        Row: {
+          comment_id: string | null
+          created_at: string
+          details: string | null
+          id: string
+          post_id: string | null
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          comment_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          post_id?: string | null
+          reason?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          post_id?: string | null
+          reason?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          parent_id: string | null
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      follow_requests: {
+        Row: {
+          created_at: string
+          id: string
+          requester_id: string
+          status: string
+          target_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          requester_id: string
+          status?: string
+          target_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          requester_id?: string
+          status?: string
+          target_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       follows: {
         Row: {
           created_at: string
@@ -64,6 +148,48 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          actor_id: string | null
+          comment_id: string | null
+          created_at: string
+          follow_request_id: string | null
+          id: string
+          is_read: boolean
+          message?: string | null
+          post_id: string | null
+          reply_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          comment_id?: string | null
+          created_at?: string
+          follow_request_id?: string | null
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          post_id?: string | null
+          reply_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          comment_id?: string | null
+          created_at?: string
+          follow_request_id?: string | null
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          post_id?: string | null
+          reply_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       posts: {
         Row: {
           content: string
@@ -97,6 +223,7 @@ export type Database = {
           display_name: string | null
           id: string
           is_banned?: boolean | null
+          is_private?: boolean | null
           is_verified?: boolean | null
           updated_at: string
           user_id: string
@@ -110,6 +237,7 @@ export type Database = {
           display_name?: string | null
           id?: string
           is_banned?: boolean | null
+          is_private?: boolean | null
           is_verified?: boolean | null
           updated_at?: string
           user_id: string
@@ -130,12 +258,73 @@ export type Database = {
         }
         Relationships: []
       }
+      spammer_flags: {
+        Row: {
+          admin_note: string | null
+          created_at: string
+          id: string
+          last_warning_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          warnings_count: number
+        }
+        Insert: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          last_warning_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          warnings_count?: number
+        }
+        Update: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          last_warning_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          warnings_count?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      admin_list_spammers: {
+        Args: { p_limit?: number }
+        Returns: {
+          user_id: string
+          username: string | null
+          display_name: string | null
+          avatar_url: string | null
+          warnings_count: number
+          status: string
+          last_warning_at: string | null
+          updated_at: string
+        }[]
+      }
+      admin_update_spammer_status: {
+        Args: { p_user_id: string; p_status: string; p_admin_note?: string | null }
+        Returns: string
+      }
+      get_my_spam_warnings_count: {
+        Args: { p_window_hours?: number }
+        Returns: number
+      }
+      admin_delete_post: {
+        Args: { p_post_id: string; p_reason?: string }
+        Returns: string
+      }
+      delete_user_account: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

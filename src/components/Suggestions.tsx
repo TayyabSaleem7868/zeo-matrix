@@ -23,25 +23,20 @@ const Suggestions = () => {
         if (!user) return;
         setLoading(true);
 
-        try {
-            // 1. Fetch people I already follow
+        try {
             const { data: follows } = await supabase
                 .from("follows")
                 .select("following_id")
                 .eq("follower_id", user.id);
 
             const followedSet = new Set(follows?.map(f => f.following_id) || []);
-            setFollowingIds(followedSet);
-
-            // 2. Fetch recent profiles (limit 5) excluding current user
+            setFollowingIds(followedSet);
             const { data: profiles } = await supabase
                 .from("profiles")
                 .select("user_id, username, display_name, avatar_url")
                 .neq("user_id", user.id)
                 .order("created_at", { ascending: false })
-                .limit(10);
-
-            // Filter out people already followed and limit to 5
+                .limit(10);
             const filtered = (profiles || [])
                 .filter(p => !followedSet.has(p.user_id))
                 .slice(0, 5);

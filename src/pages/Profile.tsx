@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ interface ProfileData {
   avatar_url: string | null;
   cover_url: string | null;
   is_verified?: boolean;
+  is_private?: boolean;
 }
 
 const Profile = () => {
@@ -39,6 +40,7 @@ const Profile = () => {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followState, setFollowState] = useState<"none" | "following" | "requested">("none");
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [editing, setEditing] = useState(false);
@@ -50,6 +52,7 @@ const Profile = () => {
   const coverRef = useRef<HTMLInputElement>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const isOwner = user?.id === userId;
+  const canViewPrivateContent = !profile?.is_private || isOwner || isFollowing;
 
   const fetchData = useCallback(async () => {
     if (!userId) {
@@ -59,7 +62,7 @@ const Profile = () => {
 
     setLoading(true);
     try {
-      // Fetch profile and stats in parallel
+
       const [profileRes, postsRes, followersRes, followingRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("posts").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
@@ -80,7 +83,6 @@ const Profile = () => {
         const postData = postsRes.data;
         const postIds = postData.map(p => p.id);
 
-        // Only fetch likes if there are posts
         if (postIds.length > 0) {
           const { data: likesData } = await supabase.from("likes").select("post_id, user_id").in("post_id", postIds);
 
@@ -107,6 +109,20 @@ const Profile = () => {
       if (user && user.id !== userId) {
         const { data } = await supabase.from("follows").select("id").eq("follower_id", user.id).eq("following_id", userId).maybeSingle();
         setIsFollowing(!!data);
+
+        const isPrivate = (profileRes.data as any)?.is_private;
+        if (isPrivate && !data) {
+          const { data: req } = await supabase
+            .from("follow_requests")
+            .select("id, status")
+            .eq("requester_id", user.id)
+            .eq("target_id", userId)
+            .eq("status", "pending")
+            .maybeSingle();
+          setFollowState(req ? "requested" : "none");
+        } else {
+          setFollowState(data ? "following" : "none");
+        }
       }
     } catch (error) {
       console.error("Error fetching profile data:", error);
@@ -122,14 +138,123 @@ const Profile = () => {
 
   const toggleFollow = async () => {
     if (!user || !userId) return;
-    if (isFollowing) {
-      await supabase.from("follows").delete().eq("follower_id", user.id).eq("following_id", userId);
-      setIsFollowing(false);
-      setFollowersCount((c) => c - 1);
-    } else {
-      await supabase.from("follows").insert({ follower_id: user.id, following_id: userId });
-      setIsFollowing(true);
-      setFollowersCount((c) => c + 1);
+
+    if (profile?.is_private && user.id !== userId) {
+      try {
+        if (followState === "requested") {
+          const { error } = await supabase
+            .from("follow_requests")
+            .delete()
+            .eq("requester_id", user.id)
+            .eq("target_id", userId)
+            .eq("status", "pending");
+          if (error) throw error;
+          setFollowState("none");
+          toast({ title: "Request cancelled" });
+          return;
+        }
+
+        const { data, error } = await (supabase as any).rpc("request_follow", { target_user_id: userId });
+        if (error) throw error;
+
+        if (data === "followed") {
+          setIsFollowing(true);
+          setFollowState("following");
+          setFollowersCount((c) => c + 1);
+          toast({ title: "Following" });
+        } else {
+          setFollowState("requested");
+          toast({ title: "Request sent", description: "This account is private." });
+        }
+        return;
+      } catch (error: any) {
+        console.error("Failed to request follow:", error);
+        toast({ title: "Follow failed", description: error?.message || "Please try again", variant: "destructive" });
+        return;
+      }
+    }
+
+    try {
+      if (isFollowing) {
+        const { error } = await supabase
+          .from("follows")
+          .delete()
+          .eq("follower_id", user.id)
+          .eq("following_id", userId);
+
+        if (error) throw error;
+
+        setIsFollowing(false);
+        setFollowersCount((c) => Math.max(0, c - 1));
+      } else {
+        const { error } = await supabase
+          .from("follows")
+          .insert({ follower_id: user.id, following_id: userId });
+
+        if (error) throw error;
+
+        setIsFollowing(true);
+        setFollowersCount((c) => c + 1);
+      }
+
+      const [followRes, followersRes] = await Promise.all([
+        supabase
+          .from("follows")
+          .select("id")
+          .eq("follower_id", user.id)
+          .eq("following_id", userId)
+          .maybeSingle(),
+        supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("following_id", userId),
+      ]);
+
+      setIsFollowing(!!followRes.data);
+  setFollowState(followRes.data ? "following" : "none");
+      setFollowersCount(followersRes.count ?? 0);
+    } catch (error: any) {
+      console.error("Failed to toggle follow:", error);
+      toast({
+        title: "Follow failed",
+        description:
+          error?.message || "Couldn't update follow status. Please try again.",
+        variant: "destructive",
+      });
+
+      if (user && userId) {
+        const [{ data }, followersRes] = await Promise.all([
+          supabase
+            .from("follows")
+            .select("id")
+            .eq("follower_id", user.id)
+            .eq("following_id", userId)
+            .maybeSingle(),
+          supabase
+            .from("follows")
+            .select("*", { count: "exact", head: true })
+            .eq("following_id", userId),
+        ]);
+        setIsFollowing(!!data);
+        setFollowState(!!data ? "following" : "none");
+        setFollowersCount(followersRes.count ?? 0);
+      }
+    }
+  };
+
+  const togglePrivate = async () => {
+    if (!user || !isOwner) return;
+    try {
+      const next = !profile?.is_private;
+      const { error } = await supabase
+        .from("profiles")
+        .update({ is_private: next } as any)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      toast({ title: next ? "Account is now private" : "Account is now public" });
+      await fetchData();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to update privacy", variant: "destructive" });
     }
   };
 
@@ -176,7 +301,7 @@ const Profile = () => {
     const reader = new FileReader();
     reader.onload = () => setCropSrc(reader.result as string);
     reader.readAsDataURL(file);
-    // Reset so the same file can be re-selected
+
     e.target.value = "";
   };
 
@@ -186,7 +311,7 @@ const Profile = () => {
     const path = `${user.id}/avatar.jpg`;
     await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
     const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-    // Bust cache by appending timestamp
+
     const url = `${data.publicUrl}?t=${Date.now()}`;
     await supabase.from("profiles").update({ avatar_url: url }).eq("user_id", user.id);
     fetchData();
@@ -211,7 +336,6 @@ const Profile = () => {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
-      {/* Avatar Cropper Modal */}
       {cropSrc && (
         <AvatarCropper
           imageSrc={cropSrc}
@@ -219,9 +343,7 @@ const Profile = () => {
           onCancel={() => setCropSrc(null)}
         />
       )}
-      {/* Cover area */}
       <div className="relative mb-8 sm:mb-12">
-        {/* Banner Background */}
         <div className="h-40 sm:h-48 md:h-52 rounded-2xl overflow-hidden relative group/cover bg-gradient-to-br from-primary/30 to-accent/30 shadow-inner">
           {profile.cover_url ? (
             <img src={profile.cover_url} alt="" className="w-full h-full object-cover" />
@@ -242,7 +364,6 @@ const Profile = () => {
           <input ref={coverRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
         </div>
 
-        {/* Profile Pic - Refined border and positioning */}
         <div className="absolute -bottom-6 sm:-bottom-8 left-4 sm:left-6 z-30">
           <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full border-[5px] border-background bg-background overflow-hidden shadow-xl flex items-center justify-center">
             {profile.avatar_url ? (
@@ -296,11 +417,28 @@ const Profile = () => {
                   <Button variant="hero" size="sm" onClick={saveProfile} className="rounded-full px-6 shadow-glow">Save</Button>
                 </div>
               ) : (
-                <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="rounded-full px-5 border-border/60 font-bold hover:bg-secondary/50">Edit Profile</Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="rounded-full px-5 border-border/60 font-bold hover:bg-secondary/50">Edit Profile</Button>
+                  <Button
+                    variant={profile?.is_private ? "outline" : "hero"}
+                    size="sm"
+                    onClick={togglePrivate}
+                    className="rounded-full px-5 font-bold"
+                    title="Toggle private account"
+                  >
+                    {profile?.is_private ? "Private" : "Public"}
+                  </Button>
+                </div>
               )
             ) : (
               <Button variant={isFollowing ? "outline" : "hero"} size="sm" onClick={toggleFollow} className="rounded-full px-8 font-bold">
-                {isFollowing ? "Unfollow" : "Follow"}
+                {isFollowing
+                  ? "Unfollow"
+                  : profile?.is_private && followState === "requested"
+                    ? "Requested"
+                    : profile?.is_private
+                      ? "Request"
+                      : "Follow"}
               </Button>
             )}
           </div>
@@ -359,14 +497,14 @@ const Profile = () => {
         )}
 
         <div className="flex flex-wrap gap-6 mt-6 pb-2">
-          <div className="flex gap-1.5 items-baseline">
+          <Link to={`/profile/${userId}/following`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
             <span className="text-base font-bold text-foreground tracking-tight">{followingCount}</span>
             <span className="text-sm text-muted-foreground font-medium">Following</span>
-          </div>
-          <div className="flex gap-1.5 items-baseline">
+          </Link>
+          <Link to={`/profile/${userId}/followers`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
             <span className="text-base font-bold text-foreground tracking-tight">{followersCount}</span>
             <span className="text-sm text-muted-foreground font-medium">Followers</span>
-          </div>
+          </Link>
           <div className="flex gap-1.5 items-baseline">
             <span className="text-base font-bold text-foreground tracking-tight">{posts.length}</span>
             <span className="text-sm text-muted-foreground font-medium">Posts</span>
@@ -375,18 +513,29 @@ const Profile = () => {
       </div>
 
       <div className="space-y-4">
-        {posts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            profile={profile}
-            onDelete={fetchData}
-            initialLiked={post.isLiked}
-            initialLikeCount={post.likeCount}
-          />
-        ))}
-        {posts.length === 0 && (
-          <p className="text-center py-12 text-muted-foreground">No posts yet.</p>
+        {!canViewPrivateContent ? (
+          <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50">
+            <p className="font-display text-lg text-muted-foreground">This account is private</p>
+            {!isOwner && (
+              <p className="text-sm text-muted-foreground/60 mt-1">Follow to see posts.</p>
+            )}
+          </div>
+        ) : (
+          <>
+            {posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                profile={profile}
+                onDelete={fetchData}
+                initialLiked={post.isLiked}
+                initialLikeCount={post.likeCount}
+              />
+            ))}
+            {posts.length === 0 && (
+              <p className="text-center py-12 text-muted-foreground">No posts yet.</p>
+            )}
+          </>
         )}
       </div>
     </div>

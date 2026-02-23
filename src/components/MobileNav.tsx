@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Search, User, LogOut } from "lucide-react";
+import { Home, Search, User, Bell, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const MobileNav = () => {
@@ -10,6 +10,7 @@ const MobileNav = () => {
     { to: "/feed", icon: Home },
     { to: "/search", icon: Search },
     { to: `/profile/${user?.id}`, icon: User },
+    { to: "/notifications", icon: Bell },
   ];
 
   return (

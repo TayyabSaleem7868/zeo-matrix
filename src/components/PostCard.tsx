@@ -42,10 +42,7 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
   const [commentCount, setCommentCount] = useState(0);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
-  const [isShareOpen, setIsShareOpen] = useState(false);
-
-  // Normalize media: use 'media' column if exists, otherwise fallback to 'image_url'
-  // Support new media types (image, video, pdf, doc, docx, zip, rar, other)
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const mediaItems = post.media || (post.image_url ? [{ url: post.image_url, type: "image" }] : []);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, duration: 30 });

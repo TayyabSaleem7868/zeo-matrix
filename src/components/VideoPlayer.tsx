@@ -32,9 +32,7 @@ const VideoPlayer = ({
     const [isMuted, setIsMuted] = useState(initialMuted);
     const [progress, setProgress] = useState(0);
     const [showControls, setShowControls] = useState(false);
-    const hideTimer = useRef<ReturnType<typeof setTimeout>>();
-
-    // Pause + mute when scrolled out of view
+    const hideTimer = useRef<ReturnType<typeof setTimeout>>();
     useEffect(() => {
         const observer = new IntersectionObserver(
             ([entry]) => {
@@ -100,14 +98,14 @@ const VideoPlayer = ({
             onMouseLeave={() => setShowControls(false)}
             style={{ cursor: "pointer" }}
         >
-            {/* Loading spinner */}
+            {}
             {loading && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/40 pointer-events-none">
                     <Loader2 className="w-8 h-8 text-primary animate-spin" />
                 </div>
             )}
 
-            {/* Video element */}
+            {}
             <video
                 ref={videoRef}
                 src={url}
@@ -132,13 +130,13 @@ const VideoPlayer = ({
                 }}
             />
 
-            {/* Controls overlay */}
+            {}
             {controls && (
                 <div
                     className={`absolute inset-x-0 bottom-0 z-10 transition-opacity duration-300 ${showControls || !isPlaying ? "opacity-100" : "opacity-0"}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* Progress bar */}
+                    {}
                     <div
                         ref={progressRef}
                         className="w-full h-1 bg-white/20 cursor-pointer hover:h-1.5 transition-all"
@@ -150,7 +148,7 @@ const VideoPlayer = ({
                         />
                     </div>
 
-                    {/* Buttons */}
+                    {}
                     <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-t from-black/80 to-transparent">
                         <button
                             onClick={togglePlay}

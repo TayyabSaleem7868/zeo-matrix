@@ -12,6 +12,7 @@ export default {
         "2xl": "1400px",
       },
     },
+    
     extend: {
       fontFamily: {
         display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],

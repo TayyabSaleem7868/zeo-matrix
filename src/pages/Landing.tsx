@@ -22,9 +22,9 @@ const Landing = () => {
   const { user } = useAuth();
   return (
     <div className="min-h-screen bg-background overflow-hidden">
-      {/* Hero */}
+      {}
       <section className="relative min-h-screen flex items-center">
-        {/* Background effects */}
+        {}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-primary/10 blur-[120px]" />
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-accent/10 blur-[120px]" />
@@ -70,7 +70,7 @@ const Landing = () => {
               </div>
             </div>
 
-            {/* Floating cards */}
+            {}
             <div className="hidden lg:flex justify-center relative h-[400px]">
               <div className="absolute top-0 left-8 w-64 rounded-2xl bg-card border border-border p-4 shadow-lg animate-float">
                 <div className="flex items-center justify-between mb-3">
@@ -139,7 +139,7 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Features */}
+      {}
       <section className="py-24">
         <div className="container mx-auto px-6">
           <h2 className="text-3xl md:text-4xl font-display font-bold text-center mb-4">
@@ -163,7 +163,7 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* CTA */}
+      {}
       <section className="py-24">
         <div className="container mx-auto px-6 text-center">
           <div className="max-w-2xl mx-auto p-12 rounded-3xl border border-border bg-card relative overflow-hidden">
@@ -193,7 +193,7 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Footer */}
+      {}
       <footer className="py-8 border-t border-border">
         <div className="container mx-auto px-6 text-center text-sm text-muted-foreground">
           © 2026 Zeo Matrix. All rights reserved.

@@ -1,19 +1,12 @@
--- Fix profile auto-creation trigger and backfill missing profiles
--- الهدف: mobile/desktop دونوں signups کے لئے profiles row ہمیشہ create ہو اور verified badge consistently work کرے.
-
--- 1) Ensure columns exist and defaults are sane
+
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT false;
 
 ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
-
--- Backfill NULLs (in case older rows exist)
+  ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
 UPDATE public.profiles
 SET is_banned = COALESCE(is_banned, false),
-    is_verified = COALESCE(is_verified, false);
-
--- 2) Create/Replace handle_new_user with correct conflict target (user_id)
+    is_verified = COALESCE(is_verified, false);
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -35,9 +28,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$;
-
--- 3) Ensure trigger exists (idempotent)
+$$;
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -50,9 +41,7 @@ BEGIN
       FOR EACH ROW
       EXECUTE FUNCTION public.handle_new_user();
   END IF;
-END $$;
-
--- 4) Backfill: create profiles for any auth.users without a profile row
+END $$;
 INSERT INTO public.profiles (user_id, username, display_name, is_banned, is_verified)
 SELECT
   u.id,

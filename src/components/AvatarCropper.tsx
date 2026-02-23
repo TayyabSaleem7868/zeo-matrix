@@ -15,9 +15,7 @@ interface CroppedArea {
     y: number;
     width: number;
     height: number;
-}
-
-// Helper: draw the cropped canvas and return a Blob
+}
 async function getCroppedBlob(
     imageSrc: string,
     pixelCrop: CroppedArea,
@@ -84,7 +82,7 @@ const AvatarCropper = ({ imageSrc, onCropDone, onCancel }: AvatarCropperProps) =
 
     return (
         <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 backdrop-blur-xl animate-in fade-in duration-200">
-            {/* Header */}
+            {}
             <div className="w-full max-w-md flex items-center justify-between px-4 py-3">
                 <button onClick={onCancel} className="p-2 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-all">
                     <X className="w-5 h-5" />
@@ -102,7 +100,7 @@ const AvatarCropper = ({ imageSrc, onCropDone, onCancel }: AvatarCropperProps) =
                 </Button>
             </div>
 
-            {/* Crop Area */}
+            {}
             <div className="relative w-full max-w-md aspect-square rounded-2xl overflow-hidden mx-4">
                 <Cropper
                     image={imageSrc}
@@ -123,9 +121,9 @@ const AvatarCropper = ({ imageSrc, onCropDone, onCancel }: AvatarCropperProps) =
                 />
             </div>
 
-            {/* Controls */}
+            {}
             <div className="w-full max-w-md px-4 mt-6 space-y-4">
-                {/* Zoom */}
+                {}
                 <div className="flex items-center gap-3">
                     <ZoomOut className="w-4 h-4 text-white/50 flex-shrink-0" />
                     <Slider
@@ -139,7 +137,7 @@ const AvatarCropper = ({ imageSrc, onCropDone, onCancel }: AvatarCropperProps) =
                     <ZoomIn className="w-4 h-4 text-white/50 flex-shrink-0" />
                 </div>
 
-                {/* Rotate */}
+                {}
                 <div className="flex items-center justify-center">
                     <button
                         onClick={() => setRotation((r) => (r + 90) % 360)}
