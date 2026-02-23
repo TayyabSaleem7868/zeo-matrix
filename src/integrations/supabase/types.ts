@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      conversation_members: {
+        Row: {
+          conversation_id: string
+          user_id: string
+          role: string
+          joined_at: string
+        }
+        Insert: {
+          conversation_id: string
+          user_id: string
+          role?: string
+          joined_at?: string
+        }
+        Update: {
+          conversation_id?: string
+          user_id?: string
+          role?: string
+          joined_at?: string
+        }
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          last_message_at: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          last_message_at?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          last_message_at?: string | null
+        }
+        Relationships: []
+      }
       comment_spam_warnings: {
         Row: {
           comment_id: string | null
@@ -291,11 +333,107 @@ export type Database = {
         }
         Relationships: []
       }
+      messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          sender_id: string | null
+          content: string
+          created_at: string
+          edited_at: string | null
+          is_deleted: boolean
+          reply_to_message_id: string | null
+          deleted_for_user_ids: string[]
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          sender_id?: string | null
+          content?: string
+          created_at?: string
+          edited_at?: string | null
+          is_deleted?: boolean
+          reply_to_message_id?: string | null
+          deleted_for_user_ids?: string[]
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          sender_id?: string | null
+          content?: string
+          created_at?: string
+          edited_at?: string | null
+          is_deleted?: boolean
+          reply_to_message_id?: string | null
+          deleted_for_user_ids?: string[]
+        }
+        Relationships: []
+      }
+      message_reactions: {
+        Row: {
+          message_id: string
+          user_id: string
+          emoji: string
+          created_at: string
+        }
+        Insert: {
+          message_id: string
+          user_id: string
+          emoji: string
+          created_at?: string
+        }
+        Update: {
+          message_id?: string
+          user_id?: string
+          emoji?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      message_user_state: {
+        Row: {
+          conversation_id: string
+          user_id: string
+          cleared_at: string | null
+        }
+        Insert: {
+          conversation_id: string
+          user_id: string
+          cleared_at?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          user_id?: string
+          cleared_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_or_create_dm: {
+        Args: { p_other_user_id: string }
+        Returns: string
+      }
+      notify_post_mentions: {
+        Args: { p_post_id: string; p_actor_id: string; p_usernames: string[] }
+        Returns: undefined
+      }
+      create_notification: {
+        Args: {
+          p_user_id: string
+          p_actor_id: string | null
+          p_type: string
+          p_message?: string | null
+          p_post_id?: string | null
+          p_comment_id?: string | null
+          p_reply_id?: string | null
+          p_follow_request_id?: string | null
+        }
+        Returns: undefined
+      }
       admin_list_spammers: {
         Args: { p_limit?: number }
         Returns: {

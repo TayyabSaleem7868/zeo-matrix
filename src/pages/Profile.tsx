@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ const Profile = () => {
   const { userId } = useParams();
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -48,11 +49,38 @@ const Profile = () => {
   const [editDisplayName, setEditDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [startingDm, setStartingDm] = useState(false);
   const avatarRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const isOwner = user?.id === userId;
   const canViewPrivateContent = !profile?.is_private || isOwner || isFollowing;
+
+  const startDm = async () => {
+    if (!user || !userId) return;
+    if (user.id === userId) return;
+
+    setStartingDm(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("get_or_create_dm", {
+        p_other_user_id: userId,
+      });
+      if (error) throw error;
+
+      const conversationId = data as string | null;
+      if (!conversationId) throw new Error("Couldn't start chat");
+      navigate(`/inbox/${conversationId}`);
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        title: "Couldn't start chat",
+        description: e?.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setStartingDm(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     if (!userId) {
@@ -289,7 +317,7 @@ const Profile = () => {
     if (!file || !user) return;
     const ext = file.name.split(".").pop();
     const path = `${user.id}/cover.${ext}`;
-    await supabase.storage.from("avatars").upload(path, file, { upsert: true }); // Using avatars bucket for simplicity or can use 'covers'
+    await supabase.storage.from("avatars").upload(path, file, { upsert: true });
     const { data } = supabase.storage.from("avatars").getPublicUrl(path);
     await supabase.from("profiles").update({ cover_url: data.publicUrl }).eq("user_id", user.id);
     fetchData();
@@ -391,8 +419,8 @@ const Profile = () => {
       </div>
 
       <div className="mb-8 pt-2">
-        <div className="flex items-start justify-between">
-          <div className="space-y-0.5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-0.5 min-w-0">
             {editing ? (
               <Input value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} className="mb-2 max-w-xs h-10 font-bold" />
             ) : (
@@ -409,15 +437,15 @@ const Profile = () => {
               @{profile.username?.split("@")[0]}
             </p>
           </div>
-          <div className="pt-2">
+          <div className="pt-2 w-full sm:w-auto">
             {isOwner ? (
               editing ? (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 justify-start sm:justify-end">
                   <Button variant="outline" size="sm" onClick={() => setEditing(false)} className="rounded-full px-4 border-border/60">Cancel</Button>
                   <Button variant="hero" size="sm" onClick={saveProfile} className="rounded-full px-6 shadow-glow">Save</Button>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 justify-start sm:justify-end">
                   <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="rounded-full px-5 border-border/60 font-bold hover:bg-secondary/50">Edit Profile</Button>
                   <Button
                     variant={profile?.is_private ? "outline" : "hero"}
@@ -431,15 +459,32 @@ const Profile = () => {
                 </div>
               )
             ) : (
-              <Button variant={isFollowing ? "outline" : "hero"} size="sm" onClick={toggleFollow} className="rounded-full px-8 font-bold">
-                {isFollowing
-                  ? "Unfollow"
-                  : profile?.is_private && followState === "requested"
-                    ? "Requested"
-                    : profile?.is_private
-                      ? "Request"
-                      : "Follow"}
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button
+                  variant={isFollowing ? "outline" : "hero"}
+                  size="sm"
+                  onClick={toggleFollow}
+                  className="rounded-full px-8 font-bold w-full sm:w-auto"
+                >
+                  {isFollowing
+                    ? "Unfollow"
+                    : profile?.is_private && followState === "requested"
+                      ? "Requested"
+                      : profile?.is_private
+                        ? "Request"
+                        : "Follow"}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={startDm}
+                  disabled={startingDm}
+                  className="rounded-full px-6 font-bold w-full sm:w-auto"
+                >
+                  {startingDm ? "Opening…" : "Message"}
+                </Button>
+              </div>
             )}
           </div>
         </div>

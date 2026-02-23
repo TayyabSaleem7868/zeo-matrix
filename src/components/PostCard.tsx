@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import ShareDialog from "./ShareDialog";
 import useEmblaCarousel from "embla-carousel-react";
 import VideoPlayer from "./VideoPlayer";
+import { useLowEndDevice } from "@/hooks/useLowEndDevice";
 
 interface PostCardProps {
   post: {
@@ -42,10 +43,18 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
   const [commentCount, setCommentCount] = useState(0);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
-  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+
+  const { isLowEnd } = useLowEndDevice();
+
+
   const mediaItems = post.media || (post.image_url ? [{ url: post.image_url, type: "image" }] : []);
 
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, duration: 30 });
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    isLowEnd
+      ? { loop: false, duration: 22, skipSnaps: false }
+      : { loop: true, duration: 30, skipSnaps: false },
+  );
 
   useEffect(() => {
     if (!emblaApi) return;
@@ -163,10 +172,10 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
 
       {mediaItems.length > 0 && (
         <div className="relative mb-4 group/media overflow-hidden rounded-2xl border border-border/40 shadow-sm bg-black/5">
-          <div className="overflow-hidden" ref={emblaRef}>
-            <div className="flex touch-pan-y">
+          <div className="overflow-hidden" ref={emblaRef} style={{ contain: "layout paint" }}>
+            <div className="flex touch-pan-y will-change-transform" style={{ transform: "translate3d(0,0,0)" }}>
               {mediaItems.map((item, index) => (
-                <div key={index} className="relative flex-[0_0_100%] min-w-0">
+                <div key={index} className="relative flex-[0_0_100%] min-w-0" style={{ contain: "content" }}>
                   <div className="cursor-pointer transition-transform duration-500 active:scale-[0.99] flex items-center justify-center bg-black/20 overflow-hidden">
                     {item.type === "image" ? (
                       <img

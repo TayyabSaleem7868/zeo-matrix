@@ -20,8 +20,12 @@ import NotFound from "./pages/NotFound";
 import Notifications from "./pages/Notifications";
 import FollowersList from "./pages/FollowersList";
 import FollowingList from "./pages/FollowingList";
+import Inbox from "./pages/Inbox";
+import ChatThread from "./pages/ChatThread";
 
 const queryClient = new QueryClient();
+
+const ADMIN_ROUTE = import.meta.env.VITE_ADMIN_ROUTE || "secret-admin-access-x9z";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -43,8 +47,10 @@ const App = () => (
                 <Route path="/profile/:userId/following" element={<FollowingList />} />
                 <Route path="/search" element={<SearchUsers />} />
                 <Route path="/notifications" element={<Notifications />} />
+                <Route path="/inbox" element={<Inbox />} />
+                <Route path="/inbox/:conversationId" element={<ChatThread />} />
               </Route>
-              <Route path="/secret-admin-access-x9z" element={<AdminPanel />} />
+              <Route path={`/${ADMIN_ROUTE}`} element={<AdminPanel />} />
               <Route path="/banned" element={<Banned />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

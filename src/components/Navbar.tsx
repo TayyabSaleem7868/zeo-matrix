@@ -49,13 +49,12 @@ const Navbar = () => {
 
     const links = [
         { to: "/feed", icon: Home, label: "Home" },
-        { to: "/feed", icon: PlusSquare, label: "Create" }, // For now, points to feed where CreatePost is
+        { to: "/feed", icon: PlusSquare, label: "Create" },
         { to: `/profile/${user?.id}`, icon: User, label: "Profile" },
     ];
 
     return (
         <nav className="fixed top-0 left-0 right-0 h-16 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/5 z-[100] px-4 md:px-8 flex items-center justify-between">
-            {}
             <Link to="/feed" className="flex items-center gap-3 group">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                     <Layout className="w-5 h-5 text-white" />
@@ -65,7 +64,6 @@ const Navbar = () => {
                 </span>
             </Link>
 
-            {}
             <div className="hidden md:flex items-center bg-white/5 rounded-full px-2 py-1 border border-white/5">
                 {links.map((l) => {
                     const active = location.pathname === l.to;
@@ -85,7 +83,6 @@ const Navbar = () => {
                 })}
             </div>
 
-            {}
             <div className="flex items-center gap-4">
                 {user && (
                     <Link

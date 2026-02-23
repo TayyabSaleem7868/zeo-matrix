@@ -57,7 +57,8 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
 
         if (error) {
             console.error("Error fetching comments:", error);
-        } else {
+        } else {
+
             const mappedData = (data as any[]).map(c => ({
                 ...c,
                 profile: c.profiles
@@ -67,7 +68,8 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
     };
 
     useEffect(() => {
-        fetchComments();
+        fetchComments();
+
         const channel = supabase
             .channel(`comments-${postId}`)
             .on(
@@ -87,7 +89,8 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
         const content = parentId ? replyContent : newComment;
         if (!user || !content.trim() || loading) return;
 
-        setLoading(true);
+        setLoading(true);
+
         const beforeWarnings = await getWarningsCount();
 
         const { data: inserted, error } = await (supabase
@@ -103,7 +106,8 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
 
         if (error) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
-        } else {
+        } else {
+
             let wasDeletedByGuard = false;
             if (!inserted?.id) {
                 wasDeletedByGuard = true;
@@ -138,7 +142,7 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
             } else {
                 setNewComment("");
             }
-            fetchComments(); // Manual refresh in case realtime is slow
+            fetchComments();
         }
         setLoading(false);
     };
@@ -153,7 +157,7 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         } else {
             toast({ title: "Success", description: "Comment deleted" });
-            fetchComments(); // Manual refresh
+            fetchComments();
         }
     };
 

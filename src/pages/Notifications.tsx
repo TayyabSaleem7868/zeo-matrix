@@ -28,6 +28,10 @@ type ActorProfile = {
 const formatText = (n: NotificationRow, actor?: ActorProfile | null) => {
   const name = actor?.display_name || actor?.username || "Someone";
   switch (n.type) {
+    case "admin_post_deleted":
+      return n.message ? `Your post was removed: ${n.message}` : "Your post was removed by an admin";
+    case "tag":
+      return `${name} tagged you in their post`;
     case "like":
       return `${name} liked your post`;
     case "comment":
@@ -51,6 +55,7 @@ export default function Notifications() {
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [actors, setActors] = useState<Map<string, ActorProfile>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [debugMe, setDebugMe] = useState<{ userId: string; latestTagForMe: number } | null>(null);
 
   const unreadCount = useMemo(() => items.filter((i) => !i.is_read).length, [items]);
 
@@ -68,6 +73,17 @@ export default function Notifications() {
       if (error) throw error;
       const rows = (data || []) as NotificationRow[];
       setItems(rows);
+
+      try {
+        const { count: tagCount } = await supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("type", "tag");
+        setDebugMe({ userId: user.id, latestTagForMe: tagCount || 0 });
+      } catch {
+        setDebugMe(null);
+      }
 
       const actorIds = [...new Set(rows.map((r) => r.actor_id).filter(Boolean) as string[])];
       if (actorIds.length) {
@@ -105,7 +121,8 @@ export default function Notifications() {
 
     return () => {
       supabase.removeChannel(channel);
-    };
+    };
+
   }, [user?.id]);
 
   const markAllRead = async () => {
@@ -128,7 +145,8 @@ export default function Notifications() {
       const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id);
       if (error) throw error;
       setItems((prev) => prev.map((p) => (p.id === id ? { ...p, is_read: true } : p)));
-    } catch {
+    } catch {
+
     }
   };
 
@@ -156,6 +174,11 @@ export default function Notifications() {
         <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50">
           <p className="font-display text-lg text-muted-foreground">No notifications yet</p>
           <p className="text-sm text-muted-foreground/60 mt-1">Likes, comments, follows will show up here.</p>
+          {debugMe && (
+            <p className="text-xs text-muted-foreground/60 mt-4">
+              Debug: user_id={debugMe.userId.slice(0, 8)}… • tag_for_me={debugMe.latestTagForMe}
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-3">

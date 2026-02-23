@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ImagePlus, Send, X, Film, Loader2 } from "lucide-react";
@@ -19,13 +19,86 @@ interface CreatePostProps {
   onPostCreated: () => void;
 }
 
+type MentionCandidate = {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+};
+
 const CreatePost = ({ onPostCreated }: CreatePostProps) => {
   const [content, setContent] = useState("");
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useAuth();
   const { toast } = useToast();
+
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const findActiveMention = (text: string, cursor: number) => {
+    const before = text.slice(0, cursor);
+    const at = before.lastIndexOf("@");
+    if (at < 0) return null;
+
+    const between = text.slice(at + 1, cursor);
+    if (/\s/.test(between)) return null;
+
+    if (at > 0 && /[A-Za-z0-9_]/.test(before[at - 1])) return null;
+
+    const query = between;
+    if (query.length > 24) return null;
+    if (!/^[A-Za-z0-9_]*$/.test(query)) return null;
+    return { start: at, end: cursor, query };
+  };
+
+  const extractMentionUsernames = (text: string) => {
+    const matches = text.match(/(^|[^A-Za-z0-9_])@([A-Za-z0-9_]{1,24})/g) || [];
+    const usernames = matches
+      .map((m) => {
+        const at = m.lastIndexOf("@");
+        return m.slice(at + 1);
+      })
+      .filter(Boolean);
+    return [...new Set(usernames.map((u) => u.toLowerCase()))];
+  };
+
+  const searchUsers = async (q: string) => {
+    const query = q.trim();
+    if (!query) {
+      setMentionCandidates([]);
+      return;
+    }
+    setMentionLoading(true);
+    try {
+      const { data, error } = await (supabase
+        .from("profiles")
+        .select("user_id, username, display_name, avatar_url") as any)
+        .ilike("username", `${query}%`)
+        .order("username", { ascending: true })
+        .limit(8);
+      if (error) throw error;
+      setMentionCandidates((data || []) as MentionCandidate[]);
+      setMentionIndex(0);
+    } catch {
+      setMentionCandidates([]);
+    } finally {
+      setMentionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!mentionOpen) return;
+    const t = setTimeout(() => {
+      searchUsers(mentionQuery);
+    }, 150);
+    return () => clearTimeout(t);
+  }, [mentionQuery, mentionOpen]);
 
   const getMediaType = (file: File): MediaType => {
     if (file.type.startsWith("image/")) return "image";
@@ -51,7 +124,7 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
       type: getMediaType(file)
     }));
 
-    setMediaFiles(prev => [...prev, ...newMedia].slice(0, 10)); // Limit to 10 items
+    setMediaFiles(prev => [...prev, ...newMedia].slice(0, 10));
   };
 
   const removeMedia = (index: number) => {
@@ -83,15 +156,39 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
 
         const { data: urlData } = supabase.storage.from("posts").getPublicUrl(path);
   mediaUrls.push({ url: urlData.publicUrl, type: item.type, name: item.file.name });
-      }
-      const { error } = await supabase.from("posts").insert({
+      }
+
+
+      const trimmed = content.trim();
+
+      const { data: inserted, error } = await supabase
+        .from("posts")
+        .insert({
         user_id: user.id,
-        content: content.trim(),
+        content: trimmed,
         image_url: mediaUrls[0]?.type === "image" ? mediaUrls[0].url : "",
-        media: mediaUrls // JSONB column, now includes name/type
-      } as any);
+        media: mediaUrls
+      } as any)
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      try {
+        const postId = inserted?.id as string | undefined;
+        const usernames = extractMentionUsernames(trimmed);
+        if (postId && usernames.length) {
+          const { error: rpcErr } = await supabase.rpc("notify_post_mentions", {
+            p_post_id: postId,
+            p_actor_id: user.id,
+            p_usernames: usernames,
+          } as any);
+
+          if (rpcErr) {
+          }
+        }
+      } catch {
+      }
 
       setContent("");
       setMediaFiles([]);
@@ -108,11 +205,140 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
     <div className="p-4 sm:p-6 rounded-[2rem] bg-card/50 border border-border/50 backdrop-blur-sm shadow-sm">
       <div className="mb-4">
         <Textarea
+          ref={textareaRef}
           placeholder="What's on your mind?"
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="border-0 bg-transparent resize-none text-base sm:text-lg text-foreground placeholder:text-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-0 min-h-[100px] p-1 transition-all"
+          onChange={(e) => {
+            const next = e.target.value;
+            setContent(next);
+
+            const cursor = e.target.selectionStart ?? next.length;
+            const m = findActiveMention(next, cursor);
+            if (m) {
+              setMentionOpen(true);
+              setMentionQuery(m.query);
+            } else {
+              setMentionOpen(false);
+              setMentionQuery("");
+              setMentionCandidates([]);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (!mentionOpen) return;
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setMentionOpen(false);
+              return;
+            }
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setMentionIndex((i) => Math.min(i + 1, Math.max(mentionCandidates.length - 1, 0)));
+              return;
+            }
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setMentionIndex((i) => Math.max(i - 1, 0));
+              return;
+            }
+            if (e.key === "Enter" || e.key === "Tab") {
+              if (!mentionCandidates.length) return;
+              e.preventDefault();
+              const pick = mentionCandidates[mentionIndex] || mentionCandidates[0];
+              const el = textareaRef.current;
+              if (!el) return;
+              const text = el.value;
+              const cursor = el.selectionStart ?? text.length;
+              const active = findActiveMention(text, cursor);
+              if (!active) return;
+
+              const before = text.slice(0, active.start);
+              const after = text.slice(active.end);
+              const inserted = `@${pick.username} `;
+              const next = before + inserted + after;
+              setContent(next);
+              setMentionOpen(false);
+              setMentionQuery("");
+              setMentionCandidates([]);
+
+              requestAnimationFrame(() => {
+                const pos = (before + inserted).length;
+                el.focus();
+                el.setSelectionRange(pos, pos);
+              });
+              return;
+            }
+          }}
+          className="bg-transparent resize-none text-base sm:text-lg text-foreground placeholder:text-muted-foreground/60 min-h-[100px] px-4 py-3 border border-transparent rounded-2xl transition-colors outline-none shadow-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:ring-offset-0 focus-visible:border-primary"
         />
+
+        {mentionOpen && (
+          <div className="relative">
+            <div className="absolute left-0 right-0 mt-2 z-50 rounded-2xl border border-border/60 bg-background/90 backdrop-blur-md shadow-lg overflow-hidden">
+              <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border/50">
+                Tag someone by username
+              </div>
+              {mentionLoading ? (
+                <div className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Searching…
+                </div>
+              ) : mentionCandidates.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">No users found</div>
+              ) : (
+                <div className="max-h-56 overflow-auto">
+                  {mentionCandidates.map((c, idx) => (
+                    <button
+                      type="button"
+                      key={c.user_id}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                      }}
+                      onClick={() => {
+                        const el = textareaRef.current;
+                        if (!el) return;
+                        const text = el.value;
+                        const cursor = el.selectionStart ?? text.length;
+                        const active = findActiveMention(text, cursor);
+                        if (!active) return;
+
+                        const before = text.slice(0, active.start);
+                        const after = text.slice(active.end);
+                        const inserted = `@${c.username} `;
+                        const next = before + inserted + after;
+                        setContent(next);
+                        setMentionOpen(false);
+                        setMentionQuery("");
+                        setMentionCandidates([]);
+
+                        requestAnimationFrame(() => {
+                          const pos = (before + inserted).length;
+                          el.focus();
+                          el.setSelectionRange(pos, pos);
+                        });
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                        idx === mentionIndex ? "bg-primary/10" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-full overflow-hidden border border-border/50 flex-shrink-0">
+                        {c.avatar_url ? (
+                          <img src={c.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full gradient-bg flex items-center justify-center">
+                            <span className="text-[11px] font-bold text-white">{(c.username || "?")[0].toUpperCase()}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-foreground truncate">{c.display_name || c.username}</div>
+                        <div className="text-xs text-muted-foreground truncate">@{c.username}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {mediaFiles.length > 0 && (

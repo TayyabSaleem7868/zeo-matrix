@@ -15,7 +15,7 @@
     --popover: 240 12% 8%;
     --popover-foreground: 220 20% 95%;
 
-    --primary: 217 91% 60%;
+  --primary: 217 91% 60%;
     
     --primary-foreground: 0 0% 100%;
 
@@ -25,7 +25,7 @@
     --muted: 220 15% 10%;
     --muted-foreground: 215 15% 65%;
 
-    --accent: 195 100% 50%;
+  --accent: 217 91% 60%;
     
     --accent-foreground: 0 0% 100%;
 
@@ -34,14 +34,16 @@
 
     --border: 220 20% 15%;
     --input: 220 20% 15%;
-    --ring: 217 91% 60%;
+  --ring: 217 91% 60%;
 
     --radius: 1rem;
 
-    --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 60%) 0%, hsl(195, 100%, 50%) 100%);
-    --gradient-subtle: linear-gradient(135deg, hsl(217, 91%, 60%, 0.15), hsl(195, 100%, 50%, 0.05));
-    --gradient-card: linear-gradient(145deg, hsl(220, 20%, 10%), hsl(220, 20%, 5%));
-    --shadow-glow: 0 0 25px hsl(217, 91%, 60%, 0.25), 0 0 50px hsl(195, 100%, 50%, 0.1);
+  --brand: 217 91% 60%;
+
+    --gradient-primary: linear-gradient(0deg, hsl(var(--brand)), hsl(var(--brand)));
+    --gradient-subtle: linear-gradient(0deg, hsl(var(--brand) / 0.10), hsl(var(--brand) / 0.10));
+    --gradient-card: linear-gradient(145deg, hsl(240 12% 9%), hsl(240 15% 4%));
+    --shadow-glow: 0 0 22px hsl(var(--brand) / 0.22);
     --shadow-card: 0 20px 50px -12px hsl(0, 0%, 0%, 0.5);
 
     --sidebar-background: 240 15% 5%;
@@ -58,6 +60,31 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(220 20% 28% / 0.8) hsl(240 12% 8% / 0.35);
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: hsl(240 12% 8% / 0.35);
+    backdrop-filter: blur(12px);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: hsl(220 20% 28% / 0.8);
+    border-radius: 9999px;
+    border: 3px solid hsl(240 12% 8% / 0.35);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(220 20% 40% / 0.9);
   }
 
   body {

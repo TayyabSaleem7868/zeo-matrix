@@ -12,7 +12,7 @@ export const supabase = createClient<Database>(
   SUPABASE_URL || "https://placeholder.supabase.co",
   SUPABASE_PUBLISHABLE_KEY || "placeholder",
   {
-    auth: {
+    auth: {
       storage:
         typeof window !== "undefined" && typeof window.localStorage !== "undefined"
           ? window.localStorage

@@ -2,7 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+
 const SuggestionsSection = () => {
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,8 +66,11 @@ interface ProfileResult {
 }
 
 const SearchUsers = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProfileResult[]>([]);
+  const [startingUserId, setStartingUserId] = useState<string | null>(null);
 
   const handleSearch = async (q: string) => {
     setQuery(q);
@@ -75,6 +81,28 @@ const SearchUsers = () => {
       .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
       .limit(20);
     setResults(data || []);
+  };
+
+  const startDm = async (otherUserId: string) => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    if (user.id === otherUserId) return;
+
+    setStartingUserId(otherUserId);
+    try {
+      const { data, error } = await (supabase as any).rpc("get_or_create_dm", {
+        p_other_user_id: otherUserId,
+      });
+      if (error) throw error;
+
+      const conversationId = data as string | null;
+      if (!conversationId) throw new Error("Couldn't start chat");
+      navigate(`/inbox/${conversationId}`);
+    } finally {
+      setStartingUserId(null);
+    }
   };
 
   return (
@@ -95,25 +123,42 @@ const SearchUsers = () => {
 
       <div className="space-y-2 mt-8">
         {results.map((r) => (
-          <Link
+          <div
             key={r.user_id}
-            to={`/profile/${r.user_id}`}
             className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all"
           >
-            <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center overflow-hidden flex-shrink-0">
-              {r.avatar_url ? (
-                <img src={r.avatar_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-primary-foreground font-display font-bold text-sm">
-                  {(r.display_name || r.username)[0].toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="min-w-0">
-              <p className="font-display font-medium text-foreground text-sm truncate">{r.display_name || r.username}</p>
-              <p className="text-xs text-muted-foreground truncate">@{r.username}</p>
-            </div>
-          </Link>
+            <Link to={`/profile/${r.user_id}`} className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center overflow-hidden flex-shrink-0">
+                {r.avatar_url ? (
+                  <img src={r.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-primary-foreground font-display font-bold text-sm">
+                    {(r.display_name || r.username)[0].toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="font-display font-medium text-foreground text-sm truncate">{r.display_name || r.username}</p>
+                <p className="text-xs text-muted-foreground truncate">@{r.username}</p>
+              </div>
+            </Link>
+
+            {user?.id !== r.user_id && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full px-4 h-9 flex-shrink-0"
+                disabled={startingUserId === r.user_id}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  startDm(r.user_id);
+                }}
+              >
+                {startingUserId === r.user_id ? "Opening…" : "Message"}
+              </Button>
+            )}
+          </div>
         ))}
         {query.length >= 2 && results.length === 0 && (
           <p className="text-center py-8 text-muted-foreground">No users found.</p>

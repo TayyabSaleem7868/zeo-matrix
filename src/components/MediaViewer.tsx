@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import useEmblaCarousel from "embla-carousel-react";
 import VideoPlayer from "./VideoPlayer";
+import { useLowEndDevice } from "@/hooks/useLowEndDevice";
 
 interface MediaItem {
     url: string;
@@ -21,9 +22,13 @@ interface MediaViewerProps {
 const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerProps) => {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const { isLowEnd } = useLowEndDevice();
+
     const [emblaRef, emblaApi] = useEmblaCarousel({
-        loop: true,
-        duration: 35,
+        ...(isLowEnd
+            ? { loop: false, duration: 22, skipSnaps: false }
+            : { loop: true, duration: 35, skipSnaps: false }),
         startIndex: initialIndex
     });
 
@@ -47,7 +52,8 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, emblaApi]);
+    }, [isOpen, emblaApi]);
+
     useEffect(() => {
         if (isOpen) {
             document.querySelectorAll<HTMLVideoElement>("video").forEach(v => {
@@ -56,7 +62,8 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
                     v.dataset.wasPlaying = "true";
                 }
             });
-        } else {
+        } else {
+
             document.querySelectorAll<HTMLVideoElement>("video").forEach(v => {
                 if (v.dataset.wasPlaying === "true") {
                     delete v.dataset.wasPlaying;
@@ -111,10 +118,10 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
             </div>
 
             {}
-            <div className="relative w-full h-full flex items-center justify-center overflow-hidden" ref={emblaRef} onClick={(e) => e.stopPropagation()}>
-                <div className="flex h-full w-full">
+            <div className="relative w-full h-full flex items-center justify-center overflow-hidden" ref={emblaRef} onClick={(e) => e.stopPropagation()} style={{ contain: "layout paint" }}>
+                <div className="flex h-full w-full will-change-transform" style={{ transform: "translate3d(0,0,0)" }}>
                     {media.map((item, idx) => (
-                        <div key={idx} className="relative flex-[0_0_100%] min-w-0 h-full flex items-center justify-center p-4 sm:p-12 md:p-20">
+                        <div key={idx} className="relative flex-[0_0_100%] min-w-0 h-full flex items-center justify-center p-4 sm:p-12 md:p-20" style={{ contain: "content" }}>
                             <div className="relative max-w-full max-h-full flex items-center justify-center animate-in zoom-in-95 fade-in duration-500">
                                 {item.type === "image" ? (
                                     <img

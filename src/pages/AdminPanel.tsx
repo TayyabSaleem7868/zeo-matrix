@@ -41,8 +41,8 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 };
 
 const ADMIN_CREDENTIALS = {
-    NAME: "ZAROON",
-    SECRET: "ZAROON_IS_TRUE_ADMIN",
+    NAME: import.meta.env.VITE_ADMIN_NAME || "",
+    SECRET: import.meta.env.VITE_ADMIN_SECRET || "",
 };
 
 const AdminPanel = () => {
@@ -154,7 +154,8 @@ const AdminPanel = () => {
             return;
         }
 
-        toast({ title: "Deleted", description: "Post removed from the site." });
+        toast({ title: "Deleted", description: "Post removed from the site." });
+
         fetchAnalytics();
         queryClient.invalidateQueries({ queryKey: ["feed"] });
     };
@@ -245,14 +246,15 @@ const AdminPanel = () => {
 
         if (activeTab === "spammers") {
             fetchSpammers();
-        }
+        }
+
     }, [activeTab, isAuthorized]);
 
     if (!isAuthorized) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background px-4">
                 <div className="w-full max-w-md p-8 rounded-3xl bg-card border border-border shadow-2xl relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-accent" />
+                    <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
                     <div className="flex flex-col items-center mb-8">
                         <div className="w-16 h-16 rounded-2xl gradient-bg flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
                             <Shield className="w-8 h-8 text-white" />
@@ -409,7 +411,7 @@ const AdminPanel = () => {
                                                         <div className="flex items-center gap-1">
                                                             <p className="text-sm font-bold text-foreground truncate">{p.display_name || p.username}</p>
                                                             {p.is_verified && (
-                                                                <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-blue-500/20" />
+                                                                <CheckCircle className="w-3.5 h-3.5 text-primary fill-primary/20" />
                                                             )}
                                                         </div>
                                                         <p className="text-xs text-muted-foreground truncate">@{p.username}</p>
@@ -427,9 +429,9 @@ const AdminPanel = () => {
                                                         variant={p.is_verified ? "secondary" : "outline"}
                                                         size="sm"
                                                         onClick={() => toggleVerification(p.user_id, p.is_verified)}
-                                                        className={`rounded-xl h-8 text-[11px] font-bold ${p.is_verified ? "bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20" : ""}`}
+                                                        className={`rounded-xl h-8 text-[11px] font-bold ${p.is_verified ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : ""}`}
                                                     >
-                                                        <CheckCircle className={`w-3 h-3 mr-1 ${p.is_verified ? "fill-blue-500" : ""}`} />
+                                                        <CheckCircle className={`w-3 h-3 mr-1 ${p.is_verified ? "fill-primary" : ""}`} />
                                                         {p.is_verified ? "Verified" : "Verify"}
                                                     </Button>
                                                     <Button
