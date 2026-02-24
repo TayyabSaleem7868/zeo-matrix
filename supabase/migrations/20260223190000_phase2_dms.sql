@@ -1,10 +1,4 @@
--- Phase 2: Direct Messages (DMs)
--- Tables: conversations, conversation_members, messages
--- Features: 1:1 conversations, typing/reads can be added later
-
 BEGIN;
-
--- 1) Conversations
 CREATE TABLE IF NOT EXISTS public.conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -13,8 +7,6 @@ CREATE TABLE IF NOT EXISTS public.conversations (
 );
 
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
-
--- 2) Conversation members
 CREATE TABLE IF NOT EXISTS public.conversation_members (
   conversation_id UUID REFERENCES public.conversations(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -24,8 +16,6 @@ CREATE TABLE IF NOT EXISTS public.conversation_members (
 );
 
 ALTER TABLE public.conversation_members ENABLE ROW LEVEL SECURITY;
-
--- 3) Messages
 CREATE TABLE IF NOT EXISTS public.messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID REFERENCES public.conversations(id) ON DELETE CASCADE NOT NULL,
@@ -34,15 +24,11 @@ CREATE TABLE IF NOT EXISTS public.messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   edited_at TIMESTAMPTZ,
   is_deleted BOOLEAN NOT NULL DEFAULT false,
-  -- Reply / quote support
   reply_to_message_id UUID REFERENCES public.messages(id) ON DELETE SET NULL,
-  -- Per-user "delete for me" support
   deleted_for_user_ids UUID[] NOT NULL DEFAULT '{}'::uuid[]
 );
 
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-
--- Reactions
 CREATE TABLE IF NOT EXISTS public.message_reactions (
   message_id UUID REFERENCES public.messages(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -52,8 +38,6 @@ CREATE TABLE IF NOT EXISTS public.message_reactions (
 );
 
 ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
-
--- Per-user message state (used for clear chat / per-user hidden content)
 CREATE TABLE IF NOT EXISTS public.message_user_state (
   conversation_id UUID REFERENCES public.conversations(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -62,8 +46,6 @@ CREATE TABLE IF NOT EXISTS public.message_user_state (
 );
 
 ALTER TABLE public.message_user_state ENABLE ROW LEVEL SECURITY;
-
--- updated_at triggers
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_conversations_updated_at') THEN
@@ -72,9 +54,6 @@ BEGIN
       FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
   END IF;
 END $$;
-
--- RLS policies
--- Conversations: user can select if they are a member
 DROP POLICY IF EXISTS "Conversations: members can view" ON public.conversations;
 CREATE POLICY "Conversations: members can view"
 ON public.conversations FOR SELECT
@@ -86,15 +65,10 @@ USING (
       AND m.user_id = auth.uid()
   )
 );
-
--- Conversations: insert is done via RPC (still allow insert if user is creating and will become member via RPC)
 DROP POLICY IF EXISTS "Conversations: authenticated can insert" ON public.conversations;
 CREATE POLICY "Conversations: authenticated can insert"
 ON public.conversations FOR INSERT
 WITH CHECK (auth.uid() IS NOT NULL);
-
--- Conversation members: members can view conversation membership
--- IMPORTANT: Keep policy non-recursive while still allowing listing the *other* member.
 CREATE OR REPLACE FUNCTION public.is_conversation_member(p_conversation_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -118,14 +92,10 @@ ON public.conversation_members FOR SELECT
 USING (
   public.is_conversation_member(conversation_id)
 );
-
--- Conversation members: users can insert themselves via RPC
 DROP POLICY IF EXISTS "Conversation members: user can join" ON public.conversation_members;
 CREATE POLICY "Conversation members: user can join"
 ON public.conversation_members FOR INSERT
 WITH CHECK (auth.uid() = user_id);
-
--- Messages: members can view
 DROP POLICY IF EXISTS "Messages: members can view" ON public.messages;
 CREATE POLICY "Messages: members can view"
 ON public.messages FOR SELECT
@@ -136,9 +106,7 @@ USING (
     WHERE m.conversation_id = conversation_id
       AND m.user_id = auth.uid()
   )
-  -- Hide messages deleted "for me"
   AND NOT (auth.uid() = ANY(deleted_for_user_ids))
-  -- Respect clear-chat (show only messages after cleared_at)
   AND (
     (SELECT mus.cleared_at
      FROM public.message_user_state mus
@@ -153,8 +121,6 @@ USING (
     )
   )
 );
-
--- Messages: members can send
 DROP POLICY IF EXISTS "Messages: members can send" ON public.messages;
 CREATE POLICY "Messages: members can send"
 ON public.messages FOR INSERT
@@ -167,15 +133,11 @@ WITH CHECK (
       AND m.user_id = auth.uid()
   )
 );
-
--- Messages: sender can update (edit/delete flag)
 DROP POLICY IF EXISTS "Messages: sender can update" ON public.messages;
 CREATE POLICY "Messages: sender can update"
 ON public.messages FOR UPDATE
 USING (auth.uid() = sender_id)
 WITH CHECK (auth.uid() = sender_id);
-
--- Reactions: members can view reactions in their conversations
 DROP POLICY IF EXISTS "Reactions: members can view" ON public.message_reactions;
 CREATE POLICY "Reactions: members can view"
 ON public.message_reactions FOR SELECT
@@ -189,8 +151,6 @@ USING (
       AND m.user_id = auth.uid()
   )
 );
-
--- Reactions: members can react (insert/update/delete their own)
 DROP POLICY IF EXISTS "Reactions: user can react" ON public.message_reactions;
 CREATE POLICY "Reactions: user can react"
 ON public.message_reactions FOR INSERT
@@ -210,8 +170,6 @@ DROP POLICY IF EXISTS "Reactions: user can remove own" ON public.message_reactio
 CREATE POLICY "Reactions: user can remove own"
 ON public.message_reactions FOR DELETE
 USING (auth.uid() = user_id);
-
--- Clear chat state: user can view/update their own row
 DROP POLICY IF EXISTS "Message user state: user can view" ON public.message_user_state;
 CREATE POLICY "Message user state: user can view"
 ON public.message_user_state FOR SELECT
@@ -228,14 +186,11 @@ ON public.message_user_state FOR UPDATE
 USING (user_id = auth.uid())
 WITH CHECK (user_id = auth.uid());
 
--- Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_members;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.message_reactions;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.message_user_state;
-
--- RPC: Get or create a 1:1 conversation and add both members
 CREATE OR REPLACE FUNCTION public.get_or_create_dm(p_other_user_id UUID)
 RETURNS UUID
 LANGUAGE plpgsql
@@ -254,8 +209,6 @@ BEGIN
   IF p_other_user_id IS NULL OR p_other_user_id = v_me THEN
     RAISE EXCEPTION 'Invalid other user';
   END IF;
-
-  -- Find an existing 1:1 conversation that has exactly these two members
   SELECT c.id
   INTO v_conversation
   FROM public.conversations c
@@ -292,8 +245,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.get_or_create_dm(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_or_create_dm(UUID) TO authenticated;
-
--- Optional: keep conversations.last_message_at fresh for inbox sorting
 CREATE OR REPLACE FUNCTION public.touch_conversation_on_message()
 RETURNS TRIGGER
 LANGUAGE plpgsql

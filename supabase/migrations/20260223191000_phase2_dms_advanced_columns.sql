@@ -1,9 +1,4 @@
--- Phase 2 add-on: Advanced DM features (reply + delete-for-me + reactions + clear-chat)
--- This migration is safe to run on an existing DM schema.
-
 BEGIN;
-
--- 1) Messages: add reply and per-user delete columns if they don't exist yet
 ALTER TABLE public.messages
   ADD COLUMN IF NOT EXISTS reply_to_message_id UUID REFERENCES public.messages(id) ON DELETE SET NULL;
 
@@ -12,8 +7,6 @@ ALTER TABLE public.messages
 
 ALTER TABLE public.messages
   ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
-
--- 2) Reactions table
 CREATE TABLE IF NOT EXISTS public.message_reactions (
   message_id UUID REFERENCES public.messages(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -23,8 +16,6 @@ CREATE TABLE IF NOT EXISTS public.message_reactions (
 );
 
 ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
-
--- 3) Per-user state table (clear chat)
 CREATE TABLE IF NOT EXISTS public.message_user_state (
   conversation_id UUID REFERENCES public.conversations(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -33,10 +24,6 @@ CREATE TABLE IF NOT EXISTS public.message_user_state (
 );
 
 ALTER TABLE public.message_user_state ENABLE ROW LEVEL SECURITY;
-
--- 4) RLS policies - idempotent drops/recreates
-
--- Messages: members can view (augmented)
 DROP POLICY IF EXISTS "Messages: members can view" ON public.messages;
 CREATE POLICY "Messages: members can view"
 ON public.messages FOR SELECT
@@ -62,8 +49,6 @@ USING (
     )
   )
 );
-
--- Reactions: members can view
 DROP POLICY IF EXISTS "Reactions: members can view" ON public.message_reactions;
 CREATE POLICY "Reactions: members can view"
 ON public.message_reactions FOR SELECT
@@ -77,8 +62,6 @@ USING (
       AND m.user_id = auth.uid()
   )
 );
-
--- Reactions: user can react
 DROP POLICY IF EXISTS "Reactions: user can react" ON public.message_reactions;
 CREATE POLICY "Reactions: user can react"
 ON public.message_reactions FOR INSERT
@@ -93,33 +76,23 @@ WITH CHECK (
       AND m.user_id = auth.uid()
   )
 );
-
--- Reactions: user can remove own
 DROP POLICY IF EXISTS "Reactions: user can remove own" ON public.message_reactions;
 CREATE POLICY "Reactions: user can remove own"
 ON public.message_reactions FOR DELETE
 USING (auth.uid() = user_id);
-
--- Message user state: user can view
 DROP POLICY IF EXISTS "Message user state: user can view" ON public.message_user_state;
 CREATE POLICY "Message user state: user can view"
 ON public.message_user_state FOR SELECT
 USING (user_id = auth.uid());
-
--- Message user state: user can upsert
 DROP POLICY IF EXISTS "Message user state: user can upsert" ON public.message_user_state;
 CREATE POLICY "Message user state: user can upsert"
 ON public.message_user_state FOR INSERT
 WITH CHECK (user_id = auth.uid());
-
--- Message user state: user can update
 DROP POLICY IF EXISTS "Message user state: user can update" ON public.message_user_state;
 CREATE POLICY "Message user state: user can update"
 ON public.message_user_state FOR UPDATE
 USING (user_id = auth.uid())
 WITH CHECK (user_id = auth.uid());
-
--- 5) Realtime publication (safe if already added)
 DO $$
 BEGIN
   BEGIN
