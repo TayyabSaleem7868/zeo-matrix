@@ -4,12 +4,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { UserPlus, UserMinus, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 interface SuggestionProfile {
     user_id: string;
     username: string;
     display_name: string | null;
     avatar_url: string | null;
+    is_verified?: boolean | null;
 }
 
 const Suggestions = () => {
@@ -23,20 +25,23 @@ const Suggestions = () => {
         if (!user) return;
         setLoading(true);
 
-        try {
+        try {
+
             const { data: follows } = await supabase
                 .from("follows")
                 .select("following_id")
                 .eq("follower_id", user.id);
 
             const followedSet = new Set(follows?.map(f => f.following_id) || []);
-            setFollowingIds(followedSet);
+            setFollowingIds(followedSet);
+
             const { data: profiles } = await supabase
                 .from("profiles")
-                .select("user_id, username, display_name, avatar_url")
+                .select("user_id, username, display_name, avatar_url, is_verified")
                 .neq("user_id", user.id)
                 .order("created_at", { ascending: false })
-                .limit(10);
+                .limit(10);
+
             const filtered = (profiles || [])
                 .filter(p => !followedSet.has(p.user_id))
                 .slice(0, 5);
@@ -112,8 +117,9 @@ const Suggestions = () => {
                                 )}
                             </div>
                             <div className="min-w-0">
-                                <p className="font-display font-bold text-foreground truncate text-[14px]">
-                                    {profile.display_name || profile.username}
+                                <p className="font-display font-bold text-foreground truncate text-[14px] flex items-center gap-1.5">
+                                    <span className="truncate">{profile.display_name || profile.username}</span>
+                                    {profile.is_verified && <VerifiedBadge className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
                                 </p>
                                 <p className="text-[12px] text-muted-foreground truncate">
                                     @{profile.username}

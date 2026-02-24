@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Heart, Trash2, MessageCircle, ChevronLeft, ChevronRight, Maximize2, MonitorPlay, Share2, CheckCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Heart, Trash2, MessageCircle, ChevronLeft, ChevronRight, Maximize2, MonitorPlay, Share2 } from "lucide-react";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
@@ -13,6 +14,8 @@ import ShareDialog from "./ShareDialog";
 import useEmblaCarousel from "embla-carousel-react";
 import VideoPlayer from "./VideoPlayer";
 import { useLowEndDevice } from "@/hooks/useLowEndDevice";
+import { buildMentionMap, extractMentionUsernames, renderContentWithMentions } from "@/lib/mentions";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface PostCardProps {
   post: {
@@ -37,8 +40,10 @@ interface PostCardProps {
 const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCount = 0 }: PostCardProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [liked, setLiked] = useState(initialLiked);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
+  const likeInFlightRef = useRef(false);
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
@@ -109,15 +114,51 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
   }, [post.id]);
 
   const toggleLike = async () => {
-    if (!user) return;
-    if (liked) {
-      await supabase.from("likes").delete().eq("post_id", post.id).eq("user_id", user.id);
+    if (!user) {
+      toast({ title: "Login required", description: "Please login to like posts.", variant: "destructive" });
+      return;
+    }
+
+    // Prevent rapid double taps from racing the UNIQUE(user_id, post_id) constraint.
+    if (likeInFlightRef.current) return;
+    likeInFlightRef.current = true;
+
+    const prevLiked = liked;
+    const prevCount = likeCount;
+
+    // Optimistic UI update.
+    if (prevLiked) {
       setLiked(false);
       setLikeCount((c) => Math.max(0, c - 1));
     } else {
-      await supabase.from("likes").insert({ user_id: user.id, post_id: post.id });
       setLiked(true);
       setLikeCount((c) => c + 1);
+    }
+
+    try {
+      if (prevLiked) {
+        const { error } = await supabase.from("likes").delete().eq("post_id", post.id).eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("likes").insert({ user_id: user.id, post_id: post.id });
+        if (error) throw error;
+      }
+
+      // Ensure a refresh doesn't revert the optimistic state due to stale cached pages.
+      await queryClient.invalidateQueries({ queryKey: ["feed"] });
+      await queryClient.invalidateQueries({ queryKey: ["profile-posts"] });
+      await queryClient.invalidateQueries({ queryKey: ["post", post.id] });
+    } catch (e: any) {
+      console.error("Failed to toggle like", e);
+      setLiked(prevLiked);
+      setLikeCount(prevCount);
+      toast({
+        title: "Couldn't update like",
+        description: e?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      likeInFlightRef.current = false;
     }
   };
 
@@ -133,6 +174,49 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
   };
 
   const postUrl = `${window.location.origin}/post/${post.id}`;
+
+  const [mentionMap, setMentionMap] = useState<Record<string, string>>({});
+  const [contentText, setContentText] = useState(post.content || "");
+
+  useEffect(() => {
+    setContentText(post.content || "");
+  }, [post.content]);
+
+  useEffect(() => {
+    const content = contentText || "";
+    const usernames = extractMentionUsernames(content);
+    if (!usernames.length) {
+      setMentionMap({});
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc("resolve_usernames_to_ids" as any, { p_usernames: usernames } as any);
+      if (cancelled) return;
+      if (error) {
+        setMentionMap({});
+        return;
+      }
+
+      setMentionMap(buildMentionMap(data || []));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contentText]);
+
+  const removeMention = async (username: string) => {
+    if (!user) return;
+    const key = username.toLowerCase();
+    setMentionMap((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    await supabase.rpc("remove_post_mention" as any, { p_post_id: post.id, p_username: username } as any);
+  };
 
   return (
     <div className="p-4 sm:p-5 rounded-[2rem] bg-card border border-border transition-all hover:bg-card/90 group/card shadow-sm">
@@ -153,7 +237,7 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
                 {profile?.display_name || profile?.username?.split("@")[0] || "Unknown"}
               </p>
               {profile?.is_verified && (
-                <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-blue-500/20" />
+                <VerifiedBadge className="w-3.5 h-3.5 text-blue-500" />
               )}
             </div>
             <p className="text-[11px] sm:text-xs text-muted-foreground/70">
@@ -168,7 +252,14 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
         )}
       </div>
 
-      {post.content && <p className="text-foreground/90 mb-4 text-[15px] leading-relaxed whitespace-pre-wrap px-1">{post.content}</p>}
+      {contentText && (
+        <p className="text-foreground/90 mb-4 text-[15px] leading-relaxed whitespace-pre-wrap px-1">
+          {renderContentWithMentions(contentText, mentionMap, {
+            canRemove: user?.id === post.user_id,
+            onRemove: removeMention,
+          })}
+        </p>
+      )}
 
       {mediaItems.length > 0 && (
         <div className="relative mb-4 group/media overflow-hidden rounded-2xl border border-border/40 shadow-sm bg-black/5">

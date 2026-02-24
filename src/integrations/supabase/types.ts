@@ -417,9 +417,23 @@ export type Database = {
         Args: { p_other_user_id: string }
         Returns: string
       }
-      notify_post_mentions: {
-        Args: { p_post_id: string; p_actor_id: string; p_usernames: string[] }
-        Returns: undefined
+      admin_delete_user: {
+        Args: { p_user_id: string; p_admin_secret: string; p_reason?: string | null }
+        Returns: string
+      }
+      admin_list_users_with_email: {
+        Args: { p_admin_secret: string }
+        Returns: {
+          user_id: string
+          email: string | null
+          username: string | null
+          display_name: string | null
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          is_banned: boolean
+          is_verified: boolean
+        }[]
       }
       create_notification: {
         Args: {
@@ -458,6 +472,27 @@ export type Database = {
       admin_delete_post: {
         Args: { p_post_id: string; p_reason?: string }
         Returns: string
+      }
+
+      resolve_usernames_to_ids: {
+        Args: { p_usernames: string[] }
+        Returns: { username: string; user_id: string }[]
+      }
+      upsert_post_mentions: {
+        Args: { p_post_id: string; p_usernames: string[] }
+        Returns: undefined
+      }
+      upsert_comment_mentions: {
+        Args: { p_comment_id: string; p_usernames: string[] }
+        Returns: undefined
+      }
+      remove_post_mention: {
+        Args: { p_post_id: string; p_username: string }
+        Returns: undefined
+      }
+      remove_comment_mention: {
+        Args: { p_comment_id: string; p_username: string }
+        Returns: undefined
       }
       delete_user_account: {
         Args: Record<PropertyKey, never>

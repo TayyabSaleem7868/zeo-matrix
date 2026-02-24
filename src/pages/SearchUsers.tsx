@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 const SuggestionsSection = () => {
   const [suggestions, setSuggestions] = useState([]);
@@ -15,7 +16,7 @@ const SuggestionsSection = () => {
       setLoading(true);
       const { data } = await supabase
         .from("profiles")
-        .select("user_id, username, display_name, avatar_url")
+        .select("user_id, username, display_name, avatar_url, is_verified")
         .order("created_at", { ascending: false })
         .limit(5);
       setSuggestions(data || []);
@@ -48,7 +49,10 @@ const SuggestionsSection = () => {
               )}
             </div>
             <div className="min-w-0">
-              <p className="font-display font-bold text-foreground truncate text-[14px]">{profile.display_name || profile.username}</p>
+              <p className="font-display font-bold text-foreground truncate text-[14px] flex items-center gap-1.5">
+                <span className="truncate">{profile.display_name || profile.username}</span>
+                {(profile as any).is_verified && <VerifiedBadge className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+              </p>
               <p className="text-[12px] text-muted-foreground truncate">@{profile.username}</p>
             </div>
           </Link>
@@ -63,6 +67,7 @@ interface ProfileResult {
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
+  is_verified?: boolean | null;
 }
 
 const SearchUsers = () => {
@@ -77,7 +82,7 @@ const SearchUsers = () => {
     if (q.trim().length < 2) { setResults([]); return; }
     const { data } = await supabase
       .from("profiles")
-      .select("user_id, username, display_name, avatar_url, bio")
+      .select("user_id, username, display_name, avatar_url, bio, is_verified")
       .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
       .limit(20);
     setResults(data || []);
@@ -138,7 +143,10 @@ const SearchUsers = () => {
                 )}
               </div>
               <div className="min-w-0">
-                <p className="font-display font-medium text-foreground text-sm truncate">{r.display_name || r.username}</p>
+                <p className="font-display font-medium text-foreground text-sm truncate flex items-center gap-1.5">
+                  <span className="truncate">{r.display_name || r.username}</span>
+                  {r.is_verified && <VerifiedBadge className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                </p>
                 <p className="text-xs text-muted-foreground truncate">@{r.username}</p>
               </div>
             </Link>

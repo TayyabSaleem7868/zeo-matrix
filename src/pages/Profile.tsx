@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import PostCard from "@/components/PostCard";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Trash2, AlertTriangle, CheckCircle } from "lucide-react";
+import { Camera, Trash2, AlertTriangle } from "lucide-react";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useRef } from "react";
 import AvatarCropper from "@/components/AvatarCropper";
 import {
@@ -55,6 +56,14 @@ const Profile = () => {
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const isOwner = user?.id === userId;
   const canViewPrivateContent = !profile?.is_private || isOwner || isFollowing;
+
+  useEffect(() => {
+    if (!userId) return;
+    if (userId === "undefined" || userId === "null") {
+      if (user?.id) navigate(`/profile/${user.id}`, { replace: true });
+      else navigate("/login", { replace: true });
+    }
+  }, [userId, user?.id, navigate]);
 
   const startDm = async () => {
     if (!user || !userId) return;
@@ -315,12 +324,41 @@ const Profile = () => {
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    const ext = file.name.split(".").pop();
-    const path = `${user.id}/cover.${ext}`;
-    await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-    await supabase.from("profiles").update({ cover_url: data.publicUrl }).eq("user_id", user.id);
-    fetchData();
+
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/cover.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = `${urlData.publicUrl}?t=${Date.now()}`;
+
+      // Quick sanity fetch: if this fails we likely have bucket/policy/CORS issues.
+      try {
+        await fetch(url, { method: "HEAD", cache: "no-store" });
+      } catch {
+        // ignore; we still store the URL, but error toast below will help.
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ cover_url: url })
+        .eq("user_id", user.id);
+      if (updateError) throw updateError;
+
+      fetchData();
+    } catch (err: any) {
+      console.error("Cover upload failed:", err);
+      toast({
+        title: "Cover upload failed",
+        description: err?.message || err?.error_description || "Please try again",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -336,13 +374,43 @@ const Profile = () => {
   const handleCropDone = async (blob: Blob) => {
     if (!user) return;
     setCropSrc(null);
-    const path = `${user.id}/avatar.jpg`;
-    await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
-    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
 
-    const url = `${data.publicUrl}?t=${Date.now()}`;
-    await supabase.from("profiles").update({ avatar_url: url }).eq("user_id", user.id);
-    fetchData();
+    try {
+      const path = `${user.id}/avatar.jpg`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = `${urlData.publicUrl}?t=${Date.now()}`;
+
+      // Quick sanity fetch to detect 403/404 early.
+      try {
+        const r = await fetch(url, { method: "HEAD", cache: "no-store" });
+        if (!r.ok) {
+          console.warn("Avatar public URL not reachable:", r.status, url);
+        }
+      } catch (e) {
+        console.warn("Avatar public URL HEAD request failed", e);
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: url })
+        .eq("user_id", user.id);
+      if (updateError) throw updateError;
+
+      fetchData();
+    } catch (err: any) {
+      console.error("Avatar upload failed:", err);
+      toast({
+        title: "Avatar upload failed",
+        description: err?.message || err?.error_description || "Please try again",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -429,7 +497,7 @@ const Profile = () => {
                   {profile.display_name || profile.username?.split("@")[0]}
                 </h1>
                 {profile.is_verified && (
-                  <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500 fill-blue-500/20" />
+                  <VerifiedBadge className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
                 )}
               </div>
             )}

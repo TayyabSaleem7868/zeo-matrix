@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, PlusSquare, User, LogOut, Layout, CheckCircle, Bell } from "lucide-react";
+import { Home, PlusSquare, User, LogOut, Layout, Bell } from "lucide-react";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,7 +51,7 @@ const Navbar = () => {
     const links = [
         { to: "/feed", icon: Home, label: "Home" },
         { to: "/feed", icon: PlusSquare, label: "Create" },
-        { to: `/profile/${user?.id}`, icon: User, label: "Profile" },
+        ...(user?.id ? [{ to: `/profile/${user.id}`, icon: User, label: "Profile" }] : []),
     ];
 
     return (
@@ -111,7 +112,7 @@ const Navbar = () => {
                         </div>
                         <span className="text-sm font-medium text-white hidden sm:flex items-center gap-1 truncate max-w-[120px]">
                             {profile?.display_name || profile?.username?.split("@")[0] || "User"}
-                            {profile?.is_verified && <CheckCircle className="w-3 h-3 text-blue-500 fill-blue-500/20 flex-shrink-0" />}
+                            {profile?.is_verified && <VerifiedBadge className="w-3 h-3 text-blue-500 flex-shrink-0" />}
                         </span>
                         <button
                             onClick={signOut}

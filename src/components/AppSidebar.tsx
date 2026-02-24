@@ -10,7 +10,7 @@ const AppSidebar = () => {
     { to: "/feed", icon: Home, label: "Feed" },
     { to: "/search", icon: Search, label: "Search" },
     { to: "/inbox", icon: MessageCircle, label: "Inbox" },
-    { to: `/profile/${user?.id}`, icon: User, label: "Profile" },
+    ...(user?.id ? [{ to: `/profile/${user.id}`, icon: User, label: "Profile" }] : []),
     { to: "/notifications", icon: Bell, label: "Notifications" },
   ];
 

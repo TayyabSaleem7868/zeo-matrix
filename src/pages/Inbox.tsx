@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageCircle, Search } from "lucide-react";
+import { MessageCircle, Pin, Search, Volume2, VolumeX } from "lucide-react";
 
 type ConversationRow = {
   id: string;
@@ -16,6 +16,8 @@ type ConversationRow = {
 type MemberRow = {
   conversation_id: string;
   user_id: string;
+  pinned_at?: string | null;
+  muted_until?: string | null;
 };
 
 type Profile = {
@@ -39,6 +41,8 @@ type ThreadItem = {
   other: Profile;
   lastMessage: MessageRow | null;
   updatedAt: string;
+  pinnedAt: string | null;
+  mutedUntil: string | null;
 };
 
 export default function Inbox() {
@@ -47,6 +51,39 @@ export default function Inbox() {
   const [q, setQ] = useState("");
   const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const togglePin = async (conversationId: string, pinned: boolean) => {
+    if (!user) return;
+    const pinned_at = pinned ? null : new Date().toISOString();
+    const { error } = await supabase
+      .from("conversation_members")
+      .update({ pinned_at } as any)
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id);
+    if (error) {
+      toast({ title: "Pin failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    setThreads((prev) => prev.map((t) => (t.conversationId === conversationId ? { ...t, pinnedAt: pinned_at } : t)));
+  };
+
+  const setMute = async (conversationId: string, mode: "1h" | "8h" | "24h" | "off") => {
+    if (!user) return;
+    const muted_until =
+      mode === "off"
+        ? null
+        : new Date(Date.now() + (mode === "1h" ? 60 : mode === "8h" ? 480 : 1440) * 60 * 1000).toISOString();
+    const { error } = await supabase
+      .from("conversation_members")
+      .update({ muted_until } as any)
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id);
+    if (error) {
+      toast({ title: "Mute failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    setThreads((prev) => prev.map((t) => (t.conversationId === conversationId ? { ...t, mutedUntil: muted_until } : t)));
+  };
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -62,13 +99,15 @@ export default function Inbox() {
     if (!user) return;
     setLoading(true);
     try {
-      const { data: mems, error: memErr } = await supabase
+      const { data: memsRaw, error: memErr } = await supabase
         .from("conversation_members")
-        .select("conversation_id, user_id")
+        .select("conversation_id, user_id, pinned_at, muted_until")
         .eq("user_id", user.id);
       if (memErr) throw memErr;
 
-      const conversationIds = [...new Set((mems || []).map((m: MemberRow) => m.conversation_id))];
+      const mems = (memsRaw || []) as any as MemberRow[];
+
+  const conversationIds = [...new Set(mems.map((m) => m.conversation_id))];
       if (conversationIds.length === 0) {
         setThreads([]);
         return;
@@ -120,15 +159,27 @@ export default function Inbox() {
         if (!otherId) return [];
         const other = profMap.get(otherId);
         if (!other) return [];
+
+  const myPrefs = mems.find((m) => m.conversation_id === c.id && m.user_id === user.id);
         return [{
           conversationId: c.id,
           other,
           lastMessage: lastByConv.get(c.id) || null,
           updatedAt: c.last_message_at || c.updated_at,
+          pinnedAt: (myPrefs as any)?.pinned_at ?? null,
+          mutedUntil: (myPrefs as any)?.muted_until ?? null,
         }];
       });
 
-      setThreads(items.sort((a, b) => (new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())));
+      setThreads(
+        items.sort((a, b) => {
+          const ap = a.pinnedAt ? 1 : 0;
+          const bp = b.pinnedAt ? 1 : 0;
+          if (ap !== bp) return bp - ap;
+          if (a.pinnedAt && b.pinnedAt) return new Date(b.pinnedAt).getTime() - new Date(a.pinnedAt).getTime();
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        })
+      );
     } catch (e: any) {
       console.error(e);
       toast({ title: "Inbox error", description: e?.message || "Failed to load inbox", variant: "destructive" });
@@ -219,7 +270,10 @@ export default function Inbox() {
 
                 <div className="min-w-0 flex-1">
                   <p className="text-base sm:text-sm font-semibold text-foreground leading-snug truncate">
-                    {t.other.display_name || t.other.username}
+                    <span className="inline-flex items-center gap-2">
+                      {t.other.display_name || t.other.username}
+                      {t.pinnedAt && <Pin className="w-3.5 h-3.5 text-muted-foreground" />}
+                    </span>
                     <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">@{t.other.username}</span>
                   </p>
                   <p className="text-sm sm:text-sm text-muted-foreground leading-relaxed mt-1 overflow-hidden text-ellipsis">
@@ -227,9 +281,48 @@ export default function Inbox() {
                   </p>
                 </div>
 
-                <p className="text-xs text-muted-foreground flex-shrink-0 hidden sm:block">
-                  {new Date(t.updatedAt).toLocaleDateString()}
-                </p>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <p className="text-xs text-muted-foreground hidden sm:block">
+                    {new Date(t.updatedAt).toLocaleDateString()}
+                  </p>
+                  <div
+                    className="flex items-center gap-1"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-xl"
+                      title={t.pinnedAt ? "Unpin" : "Pin"}
+                      onClick={() => togglePin(t.conversationId, !!t.pinnedAt)}
+                    >
+                      <Pin className="w-4 h-4" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-xl"
+                      title={t.mutedUntil ? "Unmute" : "Mute"}
+                      onClick={() => {
+                        if (t.mutedUntil && new Date(t.mutedUntil).getTime() > Date.now()) {
+                          setMute(t.conversationId, "off");
+                        } else {
+                          setMute(t.conversationId, "8h");
+                        }
+                      }}
+                    >
+                      {t.mutedUntil && new Date(t.mutedUntil).getTime() > Date.now() ? (
+                        <VolumeX className="w-4 h-4" />
+                      ) : (
+                        <Volume2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </Link>
           ))}

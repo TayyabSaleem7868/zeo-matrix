@@ -6,6 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
 import { Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
+import { buildMentionMap, extractMentionUsernames, renderContentWithMentions } from "@/lib/mentions";
 
 interface Comment {
     id: string;
@@ -33,6 +35,32 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
     const [replyTo, setReplyTo] = useState<string | null>(null);
     const [replyContent, setReplyContent] = useState("");
     const [loading, setLoading] = useState(false);
+    const [mentionMap, setMentionMap] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        const allText = (comments || []).map((c) => c.content || "").join("\n");
+        const usernames = extractMentionUsernames(allText);
+        if (!usernames.length) {
+            setMentionMap({});
+            return;
+        }
+
+        let cancelled = false;
+        (async () => {
+            const { data, error } = await supabase.rpc("resolve_usernames_to_ids" as any, { p_usernames: usernames } as any);
+            if (cancelled) return;
+            if (error) {
+                setMentionMap({});
+                return;
+            }
+
+            setMentionMap(buildMentionMap(data || []));
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [comments]);
 
     const getWarningsCount = async () => {
         if (!user) return 0;
@@ -136,6 +164,18 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
                 });
             }
 
+            try {
+                const commentId = inserted?.id as string | undefined;
+                const usernames = extractMentionUsernames(content.trim());
+                if (commentId && usernames.length) {
+                    await supabase.rpc("upsert_comment_mentions" as any, {
+                        p_comment_id: commentId,
+                        p_usernames: usernames,
+                    } as any);
+                }
+            } catch {
+            }
+
             if (parentId) {
                 setReplyContent("");
                 setReplyTo(null);
@@ -164,7 +204,11 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
     const renderComment = (comment: Comment, isReply = false) => (
         <div key={comment.id} className={`${isReply ? "ml-8 mt-3" : "mt-4"} first:mt-0 animate-fade-in`}>
             <div className="flex gap-3 group">
-                <div className={`${isReply ? "w-6 h-6" : "w-8 h-8"} rounded-full gradient-bg flex-shrink-0 flex items-center justify-center overflow-hidden`}>
+                <Link
+                    to={`/profile/${comment.user_id}`}
+                    className={`${isReply ? "w-6 h-6" : "w-8 h-8"} rounded-full gradient-bg flex-shrink-0 flex items-center justify-center overflow-hidden ring-1 ring-border/30 hover:ring-primary/30 transition-colors`}
+                    title={comment.profile?.username ? `@${comment.profile.username}` : "View profile"}
+                >
                     {comment.profile?.avatar_url ? (
                         <img src={comment.profile.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -172,19 +216,40 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
                             {(comment.profile?.display_name || comment.profile?.username || "?")[0].toUpperCase()}
                         </span>
                     )}
-                </div>
+                </Link>
                 <div className="flex-1 min-w-0">
                     <div className="bg-muted/50 p-3 rounded-2xl">
                         <div className="flex items-center justify-between mb-1">
-                            <p className="font-display font-medium text-foreground text-[12px] sm:text-[13px]">
+                            <Link
+                                to={`/profile/${comment.user_id}`}
+                                className="font-display font-medium text-foreground text-[12px] sm:text-[13px] hover:text-primary transition-colors truncate"
+                                title="View profile"
+                            >
                                 {comment.profile?.display_name || comment.profile?.username || "Unknown"}
-                            </p>
+                            </Link>
                             <p className="text-[10px] text-muted-foreground">
                                 {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
                             </p>
                         </div>
                         <p className="text-foreground text-[12px] sm:text-[13px] leading-relaxed break-words">
-                            {comment.content}
+                            {renderContentWithMentions(comment.content, mentionMap, {
+                                canRemove: user?.id === comment.user_id,
+                                onRemove: async (username) => {
+                                    const key = username.toLowerCase();
+                                    setMentionMap((prev) => {
+                                        const next = { ...prev };
+                                        delete next[key];
+                                        return next;
+                                    });
+                                    await supabase.rpc("remove_comment_mention" as any, {
+                                        p_comment_id: comment.id,
+                                        p_username: username,
+                                    } as any);
+                                },
+                                className:
+                                    "inline-flex items-center gap-1 rounded-full bg-primary/15 pl-2 pr-6 py-0.5 text-[12px] font-semibold text-primary border border-primary/20 align-baseline relative group mx-0.5 hover:bg-primary/25 w-fit max-w-full",
+                                pillTextClassName: "block max-w-full truncate pr-2",
+                            })}
                         </p>
                     </div>
                     <div className="flex gap-3 mt-1 px-2">

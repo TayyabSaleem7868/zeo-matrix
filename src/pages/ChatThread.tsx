@@ -9,9 +9,7 @@ import {
   ArrowLeft,
   Check,
   Eraser,
-  Pencil,
   Send,
-  Trash2,
   X,
 } from "lucide-react";
 
@@ -36,6 +34,13 @@ type Profile = {
   display_name: string | null;
   avatar_url: string | null;
   is_verified?: boolean | null;
+};
+
+type TypingRow = {
+  conversation_id: string;
+  user_id: string;
+  is_typing: boolean;
+  updated_at: string;
 };
 
 function InlineActions(props: {
@@ -89,6 +94,10 @@ export default function ChatThread() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [otherTyping, setOtherTyping] = useState(false);
+  const typingTimerRef = useRef<number | null>(null);
+  const lastTypingSentRef = useRef<"on" | "off">("off");
+  const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
 
   const [replyTo, setReplyTo] = useState<MessageRow | null>(null);
   const [editingMsg, setEditingMsg] = useState<MessageRow | null>(null);
@@ -104,6 +113,27 @@ export default function ChatThread() {
 
   const endRef = useRef<HTMLDivElement | null>(null);
   const convId = conversationId || "";
+
+  const setTyping = async (isTyping: boolean) => {
+    if (!user || !convId) return;
+    const next: "on" | "off" = isTyping ? "on" : "off";
+    if (lastTypingSentRef.current === next) return;
+    lastTypingSentRef.current = next;
+    await supabase.rpc("set_typing" as any, { p_conversation_id: convId, p_is_typing: isTyping } as any);
+  };
+
+  const markRead = async (msgId: string | null) => {
+    if (!user || !convId || !msgId) return;
+    setLastReadMessageId(msgId);
+    await supabase
+      .from("message_user_state")
+      .upsert({
+        conversation_id: convId,
+        user_id: user.id,
+        last_read_message_id: msgId,
+        last_read_at: new Date().toISOString(),
+      } as any);
+  };
 
   useEffect(() => {
     const mq = typeof window !== "undefined" ? window.matchMedia("(hover: none), (pointer: coarse)") : null;
@@ -172,6 +202,9 @@ export default function ChatThread() {
       const msgList = (msgs || []) as any as MessageRow[];
       setMessages(msgList);
 
+      const lastMsgId = msgList.length ? msgList[msgList.length - 1].id : null;
+      if (lastMsgId) markRead(lastMsgId);
+
       requestAnimationFrame(() => scrollToBottom());
     } catch (e: any) {
       console.error(e);
@@ -199,10 +232,28 @@ export default function ChatThread() {
         { event: "*", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` },
         () => loadThread()
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversation_typing", filter: `conversation_id=eq.${convId}` },
+        (payload) => {
+          const row = (payload.new || payload.old) as any as TypingRow | null;
+          if (!row) return;
+          if (row.user_id === user.id) return;
+          const fresh = row.updated_at ? new Date(row.updated_at).getTime() > Date.now() - 15000 : false;
+          setOtherTyping(!!row.is_typing && fresh);
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, [user?.id, convId]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+      setTyping(false);
     };
   }, [user?.id, convId]);
 
@@ -295,6 +346,7 @@ export default function ChatThread() {
 
       setText("");
       setReplyTo(null);
+      setTyping(false);
       loadThread();
     } catch (e: any) {
       toast({ title: "Send failed", description: e?.message || "Couldn't send message", variant: "destructive" });
@@ -314,7 +366,11 @@ export default function ChatThread() {
           </Button>
           <div className="min-w-0">
             <p className="font-semibold text-foreground truncate">{title}</p>
-            {other?.username && <p className="text-xs text-muted-foreground truncate">@{other.username}</p>}
+            <div className="flex items-center gap-2">
+              {other?.username && <p className="text-xs text-muted-foreground truncate">@{other.username}</p>}
+              {otherTyping && <p className="text-xs text-muted-foreground">typing…</p>}
+              {lastReadMessageId && <p className="text-xs text-muted-foreground">read</p>}
+            </div>
           </div>
         </div>
 
@@ -507,7 +563,12 @@ export default function ChatThread() {
           <div className="flex gap-3 sm:gap-2 items-center">
             <Textarea
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                setTyping(true);
+                if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+                typingTimerRef.current = window.setTimeout(() => setTyping(false), 1200);
+              }}
               placeholder={editingMsg ? "Edit message…" : "Message…"}
               className="h-12 sm:h-11 min-h-0 max-h-40 resize-none rounded-2xl px-4 py-0 text-[15px] sm:text-sm leading-[44px] sm:leading-[40px]"
               onKeyDown={(e) => {

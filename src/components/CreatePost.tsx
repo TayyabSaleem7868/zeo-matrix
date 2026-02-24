@@ -178,9 +178,8 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
         const postId = inserted?.id as string | undefined;
         const usernames = extractMentionUsernames(trimmed);
         if (postId && usernames.length) {
-          const { error: rpcErr } = await supabase.rpc("notify_post_mentions", {
+          const { error: rpcErr } = await supabase.rpc("upsert_post_mentions" as any, {
             p_post_id: postId,
-            p_actor_id: user.id,
             p_usernames: usernames,
           } as any);
 

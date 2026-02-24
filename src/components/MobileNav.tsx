@@ -10,7 +10,7 @@ const MobileNav = () => {
     { to: "/feed", icon: Home },
     { to: "/search", icon: Search },
     { to: "/inbox", icon: MessageCircle },
-    { to: `/profile/${user?.id}`, icon: User },
+    ...(user?.id ? [{ to: `/profile/${user.id}`, icon: User }] : []),
     { to: "/notifications", icon: Bell },
   ];
 

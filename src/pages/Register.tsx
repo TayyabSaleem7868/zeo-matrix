@@ -22,7 +22,7 @@ const Register = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -30,6 +30,25 @@ const Register = () => {
         emailRedirectTo: window.location.origin,
       },
     });
+
+    // Safety net: some DB/RLS/trigger setups can fail to create the profile row during signup.
+    // If we immediately have a session + user, ensure the profile exists.
+    if (!error && data?.user && data?.session) {
+      const profilePayload = {
+        user_id: data.user.id,
+        username,
+        display_name: displayName || username,
+      };
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(profilePayload, { onConflict: "user_id" });
+
+      if (profileError) {
+        // Don't hard-fail signup; surface a message that points to the real issue.
+        console.error("Profile upsert failed after signup:", profileError);
+      }
+    }
     setLoading(false);
     if (error) {
       toast({ title: "Signup failed", description: error.message, variant: "destructive" });

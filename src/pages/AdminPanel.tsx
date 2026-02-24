@@ -4,7 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Users, Ban, CheckCircle, Search, Mail, User, Clock } from "lucide-react";
+import { Shield, Users, Ban, Search, Mail, User, Clock, Trash2 } from "lucide-react";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,7 +47,7 @@ const ADMIN_CREDENTIALS = {
 };
 
 const AdminPanel = () => {
-    const { user } = useAuth();
+    const { user, session, loading: authLoading } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [isAuthorized, setIsAuthorized] = useState(false);
@@ -71,8 +72,30 @@ const AdminPanel = () => {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [pendingDeletePostId, setPendingDeletePostId] = useState<string | null>(null);
 
+    const [deleteUserDialogOpen, setDeleteUserDialogOpen] = useState(false);
+    const [pendingDeleteUserId, setPendingDeleteUserId] = useState<string | null>(null);
+    const [pendingDeleteUsername, setPendingDeleteUsername] = useState<string | null>(null);
+
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (authLoading) {
+            toast({
+                title: "Please wait",
+                description: "Checking your login session...",
+            });
+            return;
+        }
+
+        if (!session) {
+            toast({
+                title: "Error",
+                description: "Not authenticated. Please log in to your account first.",
+                variant: "destructive",
+            });
+            return;
+        }
+
         if (
             adminName === ADMIN_CREDENTIALS.NAME &&
             adminSecret === ADMIN_CREDENTIALS.SECRET
@@ -90,10 +113,16 @@ const AdminPanel = () => {
     };
 
     const fetchProfiles = async () => {
+        if (!session) {
+            toast({ title: "Error", description: "Not authenticated", variant: "destructive" });
+            return;
+        }
         setLoading(true);
-        const { data, error } = await supabase
-            .from("profiles")
-            .select("*");
+        // Fetch admin view that includes email (joined from auth.users)
+        const { data, error } = await (supabase as any).rpc(
+            "admin_list_users_with_email",
+            { p_admin_secret: adminSecret }
+        );
 
         if (error) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -104,6 +133,10 @@ const AdminPanel = () => {
     };
 
     const fetchAnalytics = async () => {
+        if (!session) {
+            setAnalyticsError("Not authenticated");
+            return;
+        }
         setAnalyticsLoading(true);
         setAnalyticsError(null);
 
@@ -134,6 +167,47 @@ const AdminPanel = () => {
         setDeleteDialogOpen(true);
     };
 
+    const requestDeleteUser = (userId: string, username?: string | null) => {
+        setPendingDeleteUserId(userId);
+        setPendingDeleteUsername(username ?? null);
+        setDeleteUserDialogOpen(true);
+    };
+
+    const confirmDeleteUser = async () => {
+        if (!pendingDeleteUserId) return;
+
+        const userId = pendingDeleteUserId;
+        const username = pendingDeleteUsername;
+
+        setDeleteUserDialogOpen(false);
+        setPendingDeleteUserId(null);
+        setPendingDeleteUsername(null);
+
+        const { data, error } = await (supabase as any).rpc("admin_delete_user", {
+            p_user_id: userId,
+            p_admin_secret: adminSecret,
+            p_reason: "Deleted by admin",
+        });
+
+        if (error) {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+            return;
+        }
+
+        if (data !== "ok") {
+            toast({ title: "Error", description: "Could not delete user", variant: "destructive" });
+            return;
+        }
+
+        toast({
+            title: "User deleted",
+            description: username ? `@${username} removed from database.` : "User removed from database.",
+        });
+
+        fetchProfiles();
+        queryClient.invalidateQueries({ queryKey: ["feed"] });
+    };
+
     const confirmDeletePost = async () => {
         if (!pendingDeletePostId) return;
 
@@ -161,6 +235,10 @@ const AdminPanel = () => {
     };
 
     const fetchSpammers = async () => {
+        if (!session) {
+            setSpammersError("Not authenticated");
+            return;
+        }
         setSpammersLoading(true);
         setSpammersError(null);
 
@@ -230,11 +308,26 @@ const AdminPanel = () => {
 
 
     const filteredProfiles = useMemo(() => {
-        return profiles.filter(
-            (p) =>
-                p.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (p.display_name && p.display_name.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
+        const q = searchTerm.toLowerCase();
+        return profiles
+            .filter((p) => {
+                const u = (p.username ?? "").toLowerCase();
+                const d = (p.display_name ?? "").toLowerCase();
+                return u.includes(q) || d.includes(q);
+            })
+            .sort((a, b) => {
+                const av = a.is_verified ? 0 : 1;
+                const bv = b.is_verified ? 0 : 1;
+                if (av !== bv) return av - bv;
+
+                const ab = a.is_banned ? 0 : 1;
+                const bb = b.is_banned ? 0 : 1;
+                if (ab !== bb) return ab - bb;
+
+                const au = (a.username ?? "").toLowerCase();
+                const bu = (b.username ?? "").toLowerCase();
+                return au.localeCompare(bu);
+            });
     }, [profiles, searchTerm]);
 
     useEffect(() => {
@@ -387,6 +480,7 @@ const AdminPanel = () => {
                                 <thead>
                                     <tr className="bg-muted/30">
                                         <th className="p-4 font-display font-bold text-sm text-foreground">User</th>
+                                        <th className="p-4 font-display font-bold text-sm text-foreground">Email</th>
                                         <th className="p-4 font-display font-bold text-sm text-foreground">Status</th>
                                         <th className="p-4 font-display font-bold text-sm text-foreground text-right">Actions</th>
                                     </tr>
@@ -394,7 +488,7 @@ const AdminPanel = () => {
                                 <tbody className="divide-y divide-border">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={3} className="p-10 text-center text-muted-foreground italic">Fetching data...</td>
+                                            <td colSpan={4} className="p-10 text-center text-muted-foreground italic">Fetching data...</td>
                                         </tr>
                                     ) : filteredProfiles.map((p) => (
                                         <tr key={p.user_id} className="hover:bg-muted/10 transition-colors">
@@ -411,11 +505,19 @@ const AdminPanel = () => {
                                                         <div className="flex items-center gap-1">
                                                             <p className="text-sm font-bold text-foreground truncate">{p.display_name || p.username}</p>
                                                             {p.is_verified && (
-                                                                <CheckCircle className="w-3.5 h-3.5 text-primary fill-primary/20" />
+                                                                <VerifiedBadge className="w-3.5 h-3.5 text-primary" />
                                                             )}
                                                         </div>
                                                         <p className="text-xs text-muted-foreground truncate">@{p.username}</p>
                                                     </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                    <span className="text-sm text-foreground truncate" title={p.email || ""}>
+                                                        {p.email || "—"}
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td className="p-4">
@@ -431,7 +533,7 @@ const AdminPanel = () => {
                                                         onClick={() => toggleVerification(p.user_id, p.is_verified)}
                                                         className={`rounded-xl h-8 text-[11px] font-bold ${p.is_verified ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : ""}`}
                                                     >
-                                                        <CheckCircle className={`w-3 h-3 mr-1 ${p.is_verified ? "fill-primary" : ""}`} />
+                                                        <VerifiedBadge className="w-3 h-3 mr-1 text-primary" />
                                                         {p.is_verified ? "Verified" : "Verify"}
                                                     </Button>
                                                     <Button
@@ -440,8 +542,19 @@ const AdminPanel = () => {
                                                         onClick={() => toggleBan(p.user_id, p.is_banned)}
                                                         className="rounded-xl h-8 text-[11px] font-bold"
                                                     >
-                                                        {p.is_banned ? <CheckCircle className="w-3 h-3 mr-1" /> : <Ban className="w-3 h-3 mr-1" />}
+                                                        {p.is_banned ? <VerifiedBadge className="w-3 h-3 mr-1 text-primary" /> : <Ban className="w-3 h-3 mr-1" />}
                                                         {p.is_banned ? "Unban" : "Ban"}
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() => requestDeleteUser(p.user_id, p.username)}
+                                                        className="rounded-xl h-8 text-[11px] font-bold"
+                                                        title="Delete user data (cannot be undone)"
+                                                    >
+                                                        <Trash2 className="w-3 h-3 mr-1" />
+                                                        Delete
                                                     </Button>
                                                 </div>
                                             </td>
@@ -455,6 +568,31 @@ const AdminPanel = () => {
                                 </tbody>
                             </table>
                         </div>
+
+                        <AlertDialog open={deleteUserDialogOpen} onOpenChange={setDeleteUserDialogOpen}>
+                            <AlertDialogContent className="bg-card border-border/40 border-2 rounded-3xl">
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                                        <Trash2 className="w-6 h-6 text-destructive" /> Delete user
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription className="text-muted-foreground text-sm pt-2">
+                                        This will permanently delete the user’s database data (posts, likes, follows, notifications, etc.).
+                                        This action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter className="pt-4 gap-2 sm:gap-0">
+                                    <AlertDialogCancel className="bg-secondary text-foreground hover:bg-secondary/80 rounded-2xl px-6 border-0">
+                                        Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={confirmDeleteUser}
+                                        className="bg-destructive text-white hover:bg-destructive/90 transition-all font-bold rounded-2xl px-8"
+                                    >
+                                        Delete
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </TabsContent>
 
                     <TabsContent value="analytics" className="mt-6">
