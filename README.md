@@ -77,7 +77,7 @@ The platform focuses on **clean design, secure authentication, and smooth user e
 
 ## Quick Start (Local Development)
 
-### 1️Clone the repository
+### Clone the repository
 
 ```bash
 git clone [https://github.com/TayyabSaleem7868/zeo-matrix.git] (https://github.com/TayyabSaleem7868/zeo-matrix.git)
