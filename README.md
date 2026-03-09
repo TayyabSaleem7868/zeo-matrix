@@ -80,7 +80,7 @@ The platform focuses on **clean design, secure authentication, and smooth user e
 ### Clone the repository
 
 ```bash
-git clone [https://github.com/TayyabSaleem7868/zeo-matrix.git] (https://github.com/TayyabSaleem7868/zeo-matrix.git)
+git clone https://github.com/TayyabSaleem7868/zeo-matrix.git
 cd zeo-matrix
 ```
 
