@@ -190,16 +190,27 @@ export default function Notifications() {
                 key={n.id}
                 to={to}
                 onClick={() => markOneRead(n.id)}
-                className={`block p-4 rounded-2xl border transition-all ${
-                  n.is_read
+                className={`block p-4 rounded-2xl border transition-all ${n.is_read
                     ? "bg-card border-border hover:border-primary/30"
                     : "bg-primary/10 border-primary/30 hover:bg-primary/15"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10 flex-shrink-0">
                     {actor?.avatar_url ? (
-                      <img src={actor.avatar_url} alt="" className="w-full h-full object-cover" />
+                      <img
+                        src={actor.avatar_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                          const span = document.createElement('span');
+                          span.className = "text-[11px] font-bold text-white";
+                          span.innerText = (actor?.display_name || actor?.username || "?")[0].toUpperCase();
+                          (e.target as HTMLImageElement).parentElement?.appendChild(span);
+                        }}
+                      />
                     ) : (
                       <div className="w-full h-full gradient-bg flex items-center justify-center">
                         <span className="text-[11px] font-bold text-white">

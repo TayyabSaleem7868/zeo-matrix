@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Home, User, LogOut, Search, Bell, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { PWAInstallButton } from "./PWAInstallButton";
 
 const AppSidebar = () => {
   const { user, signOut } = useAuth();
@@ -36,10 +37,13 @@ const AppSidebar = () => {
         })}
       </nav>
 
-      <button onClick={signOut} className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-muted transition-all">
-        <LogOut className="w-5 h-5" />
-        Log out
-      </button>
+      <div className="mt-auto flex flex-col gap-2">
+        <PWAInstallButton />
+        <button onClick={signOut} className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-muted transition-all">
+          <LogOut className="w-5 h-5" />
+          Log out
+        </button>
+      </div>
     </aside>
   );
 };

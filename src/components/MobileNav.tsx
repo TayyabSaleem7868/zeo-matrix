@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Home, Search, User, Bell, LogOut, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { PWAInstallButton } from "./PWAInstallButton";
 
 const MobileNav = () => {
   const { user, signOut } = useAuth();

@@ -3,16 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
     <title>Zeo Matrix</title>
     <meta name="description" content="Connect with family and friends. Share your world, securely." />
     <meta name="author" content="Zeo Matrix" />
+
+    <link rel="apple-touch-icon" href="./public/favicon-32x32.png" />
+    <meta name="theme-color" content="#ffffff" />
 
     <meta property="og:title" content="Zeo Matrix" />
     <meta property="og:description" content="Connect with family and friends. Share your world, securely." />
     <meta property="og:type" content="website" />
 
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Early capture of the PWA install prompt
+      window.deferredPrompt = null;
+      window.pwaReady = false;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.deferredPrompt = e;
+        window.pwaReady = true;
+        window.dispatchEvent(new CustomEvent('pwa-ready-signal'));
+        console.log('PWA: Prompt captured in head');
+      });
+      window.addEventListener('appinstalled', () => {
+        window.deferredPrompt = null;
+        window.pwaReady = false;
+        window.dispatchEvent(new CustomEvent('pwa-installed-signal'));
+      });
+    </script>
   </head>
 
   <body>

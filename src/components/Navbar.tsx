@@ -103,7 +103,14 @@ const Navbar = () => {
                     <div className="flex items-center gap-3 pl-3 pr-1 py-1 bg-white/5 rounded-full border border-white/5">
                         <div className="w-7 h-7 rounded-full overflow-hidden border border-white/10 flex-shrink-0">
                             {profile?.avatar_url ? (
-                                <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                                <img
+                                    src={profile.avatar_url}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        setProfile(prev => prev ? { ...prev, avatar_url: null } : null);
+                                    }}
+                                />
                             ) : (
                                 <div className="w-full h-full gradient-bg flex items-center justify-center">
                                     <span className="text-[10px] font-bold text-white">{(profile?.display_name || profile?.username || "?")[0].toUpperCase()}</span>

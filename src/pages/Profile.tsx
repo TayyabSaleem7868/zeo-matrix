@@ -8,9 +8,16 @@ import { Textarea } from "@/components/ui/textarea";
 import PostCard from "@/components/PostCard";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, Trash2, AlertTriangle } from "lucide-react";
-import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useRef } from "react";
 import AvatarCropper from "@/components/AvatarCropper";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { formatNumber } from "@/lib/utils";
+import { DIVERSE_GHOST_NAMES } from "@/lib/dummyData";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +39,7 @@ interface ProfileData {
   cover_url: string | null;
   is_verified?: boolean;
   is_private?: boolean;
+  followers_bonus?: number;
 }
 
 const Profile = () => {
@@ -51,19 +59,14 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [startingDm, setStartingDm] = useState(false);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const isOwner = user?.id === userId;
+  const isGhost = userId?.startsWith("ghost-");
   const canViewPrivateContent = !profile?.is_private || isOwner || isFollowing;
-
-  useEffect(() => {
-    if (!userId) return;
-    if (userId === "undefined" || userId === "null") {
-      if (user?.id) navigate(`/profile/${user.id}`, { replace: true });
-      else navigate("/login", { replace: true });
-    }
-  }, [userId, user?.id, navigate]);
+  const showPrivateMock = isGhost && !isOwner;
 
   const startDm = async () => {
     if (!user || !userId) return;
@@ -92,12 +95,31 @@ const Profile = () => {
   };
 
   const fetchData = useCallback(async () => {
-    if (!userId) {
+    setLoading(true);
+
+    // Ghost Profile Handing
+    if (userId.startsWith("ghost-")) {
+      const ghostId = userId.replace("ghost-", "");
+      const index = (parseInt(ghostId) - 1) % DIVERSE_GHOST_NAMES.length;
+      const nameData = DIVERSE_GHOST_NAMES[index >= 0 ? index : 0];
+
+      setProfile({
+        user_id: userId,
+        username: `${nameData.username}_${ghostId}`,
+        display_name: nameData.name,
+        bio: `This is a verified Zeo Matrix user from the ${["Muslim", "Jewish", "Hindu", "Christian"][Math.floor(index / 5)] || "Global"} community.`,
+        avatar_url: `https://images.unsplash.com/photo-${1500648767791 + index}-00dcc994a43e?w=128&h=128&fit=crop`,
+        cover_url: null,
+        is_verified: true,
+        is_private: true
+      });
+      setFollowersCount(Math.floor(Math.random() * 1000) + 500);
+      setFollowingCount(Math.floor(Math.random() * 200) + 50);
+      setPosts([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
     try {
 
       const [profileRes, postsRes, followersRes, followingRes] = await Promise.all([
@@ -248,7 +270,7 @@ const Profile = () => {
       ]);
 
       setIsFollowing(!!followRes.data);
-  setFollowState(followRes.data ? "following" : "none");
+      setFollowState(followRes.data ? "following" : "none");
       setFollowersCount(followersRes.count ?? 0);
     } catch (error: any) {
       console.error("Failed to toggle follow:", error);
@@ -324,40 +346,21 @@ const Profile = () => {
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-
     try {
-      const ext = file.name.split(".").pop() || "jpg";
+      const ext = file.name.split(".").pop();
       const path = `${user.id}/cover.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(path, file, { upsert: true });
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
-      const url = `${urlData.publicUrl}?t=${Date.now()}`;
-
-      // Quick sanity fetch: if this fails we likely have bucket/policy/CORS issues.
-      try {
-        await fetch(url, { method: "HEAD", cache: "no-store" });
-      } catch {
-        // ignore; we still store the URL, but error toast below will help.
-      }
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ cover_url: url })
-        .eq("user_id", user.id);
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const { error: updateError } = await supabase.from("profiles").update({ cover_url: data.publicUrl }).eq("user_id", user.id);
       if (updateError) throw updateError;
 
       fetchData();
-    } catch (err: any) {
-      console.error("Cover upload failed:", err);
-      toast({
-        title: "Cover upload failed",
-        description: err?.message || err?.error_description || "Please try again",
-        variant: "destructive",
-      });
+      toast({ title: "Cover updated" });
+    } catch (error: any) {
+      console.error("Cover upload failed:", error);
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
     }
   };
 
@@ -374,42 +377,21 @@ const Profile = () => {
   const handleCropDone = async (blob: Blob) => {
     if (!user) return;
     setCropSrc(null);
-
     try {
       const path = `${user.id}/avatar.jpg`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
-      const url = `${urlData.publicUrl}?t=${Date.now()}`;
-
-      // Quick sanity fetch to detect 403/404 early.
-      try {
-        const r = await fetch(url, { method: "HEAD", cache: "no-store" });
-        if (!r.ok) {
-          console.warn("Avatar public URL not reachable:", r.status, url);
-        }
-      } catch (e) {
-        console.warn("Avatar public URL HEAD request failed", e);
-      }
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ avatar_url: url })
-        .eq("user_id", user.id);
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = `${data.publicUrl}?t=${Date.now()}`;
+      const { error: updateError } = await supabase.from("profiles").update({ avatar_url: url }).eq("user_id", user.id);
       if (updateError) throw updateError;
 
       fetchData();
-    } catch (err: any) {
-      console.error("Avatar upload failed:", err);
-      toast({
-        title: "Avatar upload failed",
-        description: err?.message || err?.error_description || "Please try again",
-        variant: "destructive",
-      });
+      toast({ title: "Avatar updated" });
+    } catch (error: any) {
+      console.error("Avatar upload failed:", error);
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
     }
   };
 
@@ -442,19 +424,26 @@ const Profile = () => {
       <div className="relative mb-8 sm:mb-12">
         <div className="h-40 sm:h-48 md:h-52 rounded-2xl overflow-hidden relative group/cover bg-gradient-to-br from-primary/30 to-accent/30 shadow-inner">
           {profile.cover_url ? (
-            <img src={profile.cover_url} alt="" className="w-full h-full object-cover" />
+            <img
+              src={profile.cover_url}
+              alt=""
+              className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-500"
+              onClick={() => setViewerImage(profile.cover_url)}
+            />
           ) : (
             <div className="w-full h-full" />
           )}
 
           {isOwner && (
             <button
-              onClick={() => coverRef.current?.click()}
-              className="absolute inset-0 bg-black/40 opacity-0 group-hover/cover:opacity-100 flex items-center justify-center transition-all duration-300 z-10"
+              onClick={(e) => {
+                e.stopPropagation();
+                coverRef.current?.click();
+              }}
+              className="absolute bottom-4 right-4 p-3 rounded-full bg-black/60 backdrop-blur-md border border-white/30 shadow-2xl opacity-0 group-hover/cover:opacity-100 transition-all duration-300 z-20 hover:scale-110 hover:bg-black/80 active:scale-95"
+              title="Change Cover"
             >
-              <div className="p-3 rounded-full bg-white/20 backdrop-blur-md border border-white/30 shadow-xl">
-                <Camera className="w-6 h-6 text-white" />
-              </div>
+              <Camera className="w-6 h-6 text-white" />
             </button>
           )}
           <input ref={coverRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
@@ -463,7 +452,15 @@ const Profile = () => {
         <div className="absolute -bottom-6 sm:-bottom-8 left-4 sm:left-6 z-30">
           <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full border-[5px] border-background bg-background overflow-hidden shadow-xl flex items-center justify-center">
             {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              <img
+                src={profile.avatar_url}
+                alt=""
+                className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-500"
+                onClick={() => setViewerImage(profile.avatar_url)}
+                onError={() => {
+                  setProfile(prev => prev ? { ...prev, avatar_url: null } : null);
+                }}
+              />
             ) : (
               <div className="w-full h-full gradient-bg flex items-center justify-center">
                 <span className="text-primary-foreground font-display font-bold text-2xl sm:text-3xl">
@@ -473,12 +470,14 @@ const Profile = () => {
             )}
             {isOwner && (
               <button
-                onClick={() => avatarRef.current?.click()}
-                className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 flex items-center justify-center transition-all duration-300 group/avatar"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  avatarRef.current?.click();
+                }}
+                className="absolute bottom-0 right-0 p-2.5 rounded-full bg-black/60 backdrop-blur-md border border-white/30 shadow-2xl z-20 hover:scale-115 transition-all active:scale-90 group/cam hover:bg-black/80"
+                title="Change Avatar"
               >
-                <div className="p-2 rounded-full bg-white/20 backdrop-blur-sm border border-white/30">
-                  <Camera className="w-5 h-5 text-white" />
-                </div>
+                <Camera className="w-4 h-4 text-white group-hover/cam:rotate-12 transition-transform" />
               </button>
             )}
             <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
@@ -497,7 +496,7 @@ const Profile = () => {
                   {profile.display_name || profile.username?.split("@")[0]}
                 </h1>
                 {profile.is_verified && (
-                  <VerifiedBadge className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
+                  <VerifiedBadge className="w-5 h-5 sm:w-6 sm:h-6" />
                 )}
               </div>
             )}
@@ -615,7 +614,9 @@ const Profile = () => {
             <span className="text-sm text-muted-foreground font-medium">Following</span>
           </Link>
           <Link to={`/profile/${userId}/followers`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
-            <span className="text-base font-bold text-foreground tracking-tight">{followersCount}</span>
+            <span className="text-base font-bold text-foreground tracking-tight">
+              {formatNumber(followersCount + (profile?.followers_bonus || 0))}
+            </span>
             <span className="text-sm text-muted-foreground font-medium">Followers</span>
           </Link>
           <div className="flex gap-1.5 items-baseline">
@@ -626,7 +627,7 @@ const Profile = () => {
       </div>
 
       <div className="space-y-4">
-        {!canViewPrivateContent ? (
+        {(showPrivateMock || !canViewPrivateContent) ? (
           <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50">
             <p className="font-display text-lg text-muted-foreground">This account is private</p>
             {!isOwner && (
@@ -651,6 +652,19 @@ const Profile = () => {
           </>
         )}
       </div>
+
+      <Dialog open={!!viewerImage} onOpenChange={(open) => !open && setViewerImage(null)}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 border-none bg-black/90 backdrop-blur-xl overflow-hidden flex items-center justify-center sm:rounded-3xl shadow-2xl overflow-y-auto">
+          <DialogTitle className="sr-only">Image Viewer</DialogTitle>
+          {viewerImage && (
+            <img
+              src={viewerImage}
+              alt="View"
+              className="max-w-full max-h-[90vh] object-contain animate-in zoom-in-95 duration-300"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

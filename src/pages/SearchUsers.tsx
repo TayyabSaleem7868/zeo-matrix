@@ -41,7 +41,19 @@ const SuggestionsSection = () => {
           >
             <div className="w-12 h-12 rounded-full gradient-bg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 border-primary/20 group-hover:border-primary transition-colors">
               {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                <img
+                  src={profile.avatar_url}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                    const span = document.createElement('span');
+                    span.className = "text-primary-foreground font-display font-bold text-sm";
+                    span.innerText = (profile.display_name || profile.username || "?")[0].toUpperCase();
+                    (e.target as HTMLImageElement).parentElement?.appendChild(span);
+                  }}
+                />
               ) : (
                 <span className="text-primary-foreground font-display font-bold text-sm">
                   {(profile.display_name || profile.username || "?")[0].toUpperCase()}
@@ -123,19 +135,29 @@ const SearchUsers = () => {
         />
       </div>
 
-      {}
-      <SuggestionsSection />
-
-      <div className="space-y-2 mt-8">
+      { }
+      <div className="space-y-2 mt-4">
         {results.map((r) => (
           <div
             key={r.user_id}
-            className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all"
+            className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all font-display"
           >
             <Link to={`/profile/${r.user_id}`} className="flex items-center gap-3 min-w-0 flex-1">
               <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center overflow-hidden flex-shrink-0">
                 {r.avatar_url ? (
-                  <img src={r.avatar_url} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={r.avatar_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                      const span = document.createElement('span');
+                      span.className = "text-primary-foreground font-display font-bold text-sm";
+                      span.innerText = (r.display_name || r.username || "?")[0].toUpperCase();
+                      (e.target as HTMLImageElement).parentElement?.appendChild(span);
+                    }}
+                  />
                 ) : (
                   <span className="text-primary-foreground font-display font-bold text-sm">
                     {(r.display_name || r.username)[0].toUpperCase()}
@@ -171,6 +193,10 @@ const SearchUsers = () => {
         {query.length >= 2 && results.length === 0 && (
           <p className="text-center py-8 text-muted-foreground">No users found.</p>
         )}
+      </div>
+
+      <div className="mt-10">
+        <SuggestionsSection />
       </div>
     </div>
   );

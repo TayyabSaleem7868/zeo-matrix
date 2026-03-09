@@ -35,18 +35,44 @@ const Suggestions = () => {
             const followedSet = new Set(follows?.map(f => f.following_id) || []);
             setFollowingIds(followedSet);
 
-            const { data: profiles } = await supabase
+            const { data: profilesPool } = await supabase
                 .from("profiles")
                 .select("user_id, username, display_name, avatar_url, is_verified")
                 .neq("user_id", user.id)
                 .order("created_at", { ascending: false })
-                .limit(10);
+                .limit(20);
 
-            const filtered = (profiles || [])
-                .filter(p => !followedSet.has(p.user_id))
-                .slice(0, 5);
+            let pool = profilesPool || [];
 
-            setSuggestions(filtered);
+            // 1. Find zeomatrixofficial in the pool or fetch specifically (case-insensitive)
+            let featured = pool.find(p => p.username?.toLowerCase() === 'zeomatrixofficial');
+            if (!featured) {
+                const { data: featData } = await supabase
+                    .from("profiles")
+                    .select("user_id, username, display_name, avatar_url, is_verified")
+                    .ilike("username", 'zeomatrixofficial')
+                    .maybeSingle(); // Use maybeSingle to avoid errors if not found
+                if (featData) featured = featData as SuggestionProfile;
+            }
+
+            // 2. Filter out already followed and current user, and also exclude zeomatrixofficial from the remaining list
+            const filtered = pool.filter(p =>
+                !followedSet.has(p.user_id) &&
+                p.username?.toLowerCase() !== 'zeomatrixofficial'
+            );
+
+            // 3. Construct final list: Featured first (if not followed), then the rest
+            const finalSuggestions: SuggestionProfile[] = [];
+            if (featured && !followedSet.has(featured.user_id) && featured.user_id !== user.id) {
+                finalSuggestions.push(featured);
+            }
+
+            // Add others until we hit 5
+            filtered.forEach(p => {
+                if (finalSuggestions.length < 5) finalSuggestions.push(p);
+            });
+
+            setSuggestions(finalSuggestions);
         } catch (error) {
             console.error("Error fetching suggestions:", error);
         } finally {
@@ -109,7 +135,19 @@ const Suggestions = () => {
                         <Link to={`/profile/${profile.user_id}`} className="flex items-center gap-3 min-w-0 flex-1">
                             <div className="w-12 h-12 rounded-full gradient-bg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 border-primary/20 group-hover:border-primary transition-colors">
                                 {profile.avatar_url ? (
-                                    <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                                    <img
+                                        src={profile.avatar_url}
+                                        alt=""
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).style.display = 'none';
+                                            (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                                            const span = document.createElement('span');
+                                            span.className = "text-primary-foreground font-display font-bold text-sm";
+                                            span.innerText = (profile.display_name || profile.username || "?")[0].toUpperCase();
+                                            (e.target as HTMLImageElement).parentElement?.appendChild(span);
+                                        }}
+                                    />
                                 ) : (
                                     <span className="text-primary-foreground font-display font-bold text-sm">
                                         {(profile.display_name || profile.username || "?")[0].toUpperCase()}
@@ -130,8 +168,8 @@ const Suggestions = () => {
                         <button
                             onClick={() => toggleFollow(profile.user_id)}
                             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${followingIds.has(profile.user_id)
-                                    ? "bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
-                                    : "gradient-bg text-white shadow-lg shadow-primary/20 hover:scale-110 active:scale-95"
+                                ? "bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                                : "gradient-bg text-white shadow-lg shadow-primary/20 hover:scale-110 active:scale-95"
                                 }`}
                         >
                             {followingIds.has(profile.user_id) ? <UserMinus className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}

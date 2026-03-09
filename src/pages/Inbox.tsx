@@ -34,6 +34,7 @@ type MessageRow = {
   sender_id: string | null;
   content: string;
   created_at: string;
+  attachment_type?: string | null;
 };
 
 type ThreadItem = {
@@ -107,7 +108,7 @@ export default function Inbox() {
 
       const mems = (memsRaw || []) as any as MemberRow[];
 
-  const conversationIds = [...new Set(mems.map((m) => m.conversation_id))];
+      const conversationIds = [...new Set(mems.map((m) => m.conversation_id))];
       if (conversationIds.length === 0) {
         setThreads([]);
         return;
@@ -143,7 +144,7 @@ export default function Inbox() {
 
       const { data: msgs, error: msgErr } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, created_at")
+        .select("id, conversation_id, sender_id, content, created_at, attachment_type")
         .in("conversation_id", conversationIds)
         .order("created_at", { ascending: false })
         .limit(200);
@@ -160,7 +161,7 @@ export default function Inbox() {
         const other = profMap.get(otherId);
         if (!other) return [];
 
-  const myPrefs = mems.find((m) => m.conversation_id === c.id && m.user_id === user.id);
+        const myPrefs = mems.find((m) => m.conversation_id === c.id && m.user_id === user.id);
         return [{
           conversationId: c.id,
           other,
@@ -258,7 +259,19 @@ export default function Inbox() {
               <div className="flex items-start sm:items-center gap-4 sm:gap-3">
                 <div className="w-14 h-14 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-white/10 flex-shrink-0">
                   {t.other.avatar_url ? (
-                    <img src={t.other.avatar_url} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={t.other.avatar_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                        const span = document.createElement('span');
+                        span.className = "text-[12px] font-bold text-white";
+                        span.innerText = (t.other.display_name || t.other.username || "?")[0].toUpperCase();
+                        (e.target as HTMLImageElement).parentElement?.appendChild(span);
+                      }}
+                    />
                   ) : (
                     <div className="w-full h-full gradient-bg flex items-center justify-center">
                       <span className="text-[12px] font-bold text-white">
@@ -277,7 +290,15 @@ export default function Inbox() {
                     <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">@{t.other.username}</span>
                   </p>
                   <p className="text-sm sm:text-sm text-muted-foreground leading-relaxed mt-1 overflow-hidden text-ellipsis">
-                    {t.lastMessage ? t.lastMessage.content : "Say hi 👋"}
+                    {t.lastMessage ? (
+                      t.lastMessage.content ||
+                      (t.lastMessage.attachment_type?.startsWith("image/") ? "Sent an image" :
+                        t.lastMessage.attachment_type?.startsWith("video/") ? "Sent a video" :
+                          t.lastMessage.attachment_type?.startsWith("audio/") ? "Sent a voice message" :
+                            "Sent an attachment")
+                    ) : (
+                      "Say hi 👋"
+                    )}
                   </p>
                 </div>
 

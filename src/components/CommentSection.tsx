@@ -8,6 +8,7 @@ import { Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import { buildMentionMap, extractMentionUsernames, renderContentWithMentions } from "@/lib/mentions";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 interface Comment {
     id: string;
@@ -20,6 +21,7 @@ interface Comment {
         username: string;
         display_name: string | null;
         avatar_url: string | null;
+        is_verified?: boolean | null;
     } | null;
 }
 
@@ -70,14 +72,15 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
     };
 
     const fetchComments = async () => {
-                const { data, error } = await (supabase
-                        .from("comments" as any) as any)
+        const { data, error } = await (supabase
+            .from("comments" as any) as any)
             .select(`
         *,
         profiles (
           username,
           display_name,
-          avatar_url
+          avatar_url,
+          is_verified
         )
       `)
             .eq("post_id", postId)
@@ -222,10 +225,11 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
                         <div className="flex items-center justify-between mb-1">
                             <Link
                                 to={`/profile/${comment.user_id}`}
-                                className="font-display font-medium text-foreground text-[12px] sm:text-[13px] hover:text-primary transition-colors truncate"
+                                className="font-display font-medium text-foreground text-[12px] sm:text-[13px] hover:text-primary transition-colors truncate flex items-center gap-1"
                                 title="View profile"
                             >
-                                {comment.profile?.display_name || comment.profile?.username || "Unknown"}
+                                <span className="truncate">{comment.profile?.display_name || comment.profile?.username || "Unknown"}</span>
+                                {comment.profile?.is_verified && <VerifiedBadge size={14} />}
                             </Link>
                             <p className="text-[10px] text-muted-foreground">
                                 {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
@@ -293,7 +297,7 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
                         </form>
                     )}
 
-                    {}
+                    { }
                     {comments.filter(c => c.parent_id === comment.id).map(reply => renderComment(reply, true))}
                 </div>
             </div>

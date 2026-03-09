@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/AppSidebar";
 import MobileNav from "@/components/MobileNav";
+import { PWAInstallButton } from "@/components/PWAInstallButton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -35,6 +36,11 @@ const AppLayout = () => {
           <Outlet />
         </div>
       </main>
+      <div className="md:hidden fixed bottom-20 left-0 right-0 flex justify-center p-2 z-40 pointer-events-none">
+        <div className="pointer-events-auto bg-background/80 backdrop-blur-sm border border-border/50 rounded-full px-1 shadow-sm opacity-80 scale-90">
+          <PWAInstallButton />
+        </div>
+      </div>
       <MobileNav />
     </div>
   );

@@ -224,7 +224,19 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
         <Link to={`/profile/${post.user_id}`} className="flex items-center gap-3 group">
           <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center overflow-hidden border border-primary/20 shadow-sm">
             {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              <img
+                src={profile.avatar_url}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                  (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                  const span = document.createElement('span');
+                  span.className = "text-primary-foreground font-display font-bold text-sm";
+                  span.innerText = (profile?.display_name || profile?.username || "?")[0].toUpperCase();
+                  (e.target as HTMLImageElement).parentElement?.appendChild(span);
+                }}
+              />
             ) : (
               <span className="text-primary-foreground font-display font-bold text-sm">
                 {(profile?.display_name || profile?.username || "?")[0].toUpperCase()}
@@ -285,7 +297,7 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
                         />
                       </div>
                     ) : item.type === "pdf" ? (
-                      <div className="flex flex-col items-center justify-center w-full h-40 bg-white" onClick={() => window.open(item.url, '_blank')} style={{cursor:'pointer'}}>
+                      <div className="flex flex-col items-center justify-center w-full h-40 bg-white" onClick={() => window.open(item.url, '_blank')} style={{ cursor: 'pointer' }}>
                         <span className="text-xs font-semibold">PDF</span>
                         <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Open</a>
                       </div>
