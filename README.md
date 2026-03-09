@@ -3,7 +3,7 @@
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-38BDF8)
 # Zeo Matrix
 
-> **Connect with family and friends. Share your world — securely.**
+> **Connect with family and friends. Share your world securely.**
 
  **Live Demo:**  
 https://zeomatrix.vercel.app
