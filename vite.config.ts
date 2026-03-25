@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => ({
         description: "Connect with family and friends. Share your world, securely.",
         theme_color: "#ffffff",
         background_color: "#ffffff",
-        display: "standalone",
+        display: "fullscreen",
         display_override: ["window-controls-overlay", "minimal-ui"],
         categories: ["social", "communication"],
         start_url: "/",

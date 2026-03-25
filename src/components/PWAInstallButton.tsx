@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { toast } from "sonner";
 
 export function PWAInstallButton() {
@@ -9,6 +9,9 @@ export function PWAInstallButton() {
     const [isMobile, setIsMobile] = useState(false);
     const [isInstalled, setIsInstalled] = useState(false);
     const [isIOS, setIsIOS] = useState(false);
+    const [isDismissed, setIsDismissed] = useState(() => {
+        return localStorage.getItem("pwa-prompt-dismissed") === "true";
+    });
 
     useEffect(() => {
         const checkState = () => {
@@ -70,7 +73,6 @@ export function PWAInstallButton() {
             toast.info("Install directly from your browser menu: tap the 3 dots (⋮) and look for 'Install app' or 'Add to Home screen'.", {
                 duration: 6000,
             });
-            console.log("PWA: No prompt event yet, showing manual fallback.");
             return;
         }
 
@@ -88,14 +90,21 @@ export function PWAInstallButton() {
         }
     };
 
-    if (!isMobile || isStandalone) return null;
+    const handleDismiss = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDismissed(true);
+        localStorage.setItem("pwa-prompt-dismissed", "true");
+    };
+
+    if (!isMobile || isStandalone || isDismissed) return null;
 
     return (
-        <div className="px-3 py-1.5 flex items-center justify-center">
+        <div className="px-3 py-1.5 flex items-center gap-1 mx-2 my-1 bg-background/60 backdrop-blur-xl border border-border/50 rounded-full shadow-lg">
             <button
                 onClick={handleInstall}
                 type="button"
-                className={`text-xs font-medium transition-all flex items-center gap-2 w-full active:scale-95 touch-manipulation ${isInstalled
+                className={`text-xs font-medium transition-all flex items-center gap-2 flex-1 active:scale-95 touch-manipulation ${isInstalled
                     ? "text-primary/40 cursor-default"
                     : "text-primary hover:text-primary/80 cursor-pointer border-none bg-transparent p-1"
                     }`}
@@ -105,6 +114,15 @@ export function PWAInstallButton() {
                     {isInstalled ? "App is installed" : "Install Application"}
                 </span>
             </button>
+            {!isInstalled && (
+                <button
+                    onClick={handleDismiss}
+                    className="p-1 hover:bg-primary/10 rounded-full transition-colors text-primary/60"
+                    title="Close"
+                >
+                    <X className="w-3.5 h-3.5" />
+                </button>
+            )}
         </div>
     );
 }

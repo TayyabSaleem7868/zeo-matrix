@@ -3,8 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
-import { Bell, CheckCircle2 } from "lucide-react";
+import { Bell, CheckCircle2, Brush } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type NotificationRow = {
   id: string;
@@ -14,6 +20,7 @@ type NotificationRow = {
   post_id: string | null;
   follow_request_id: string | null;
   is_read: boolean;
+  message?: string | null;
   created_at: string;
 };
 
@@ -125,18 +132,54 @@ export default function Notifications() {
 
   }, [user?.id]);
 
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
+
   const markAllRead = async () => {
-    if (!user) return;
+    if (!user || unreadCount === 0) return;
+
+    setMarkingAllRead(true);
+    // Optimistic update
+    const previousItems = [...items];
+    setItems(items.map(i => ({ ...i, is_read: true })));
+
     try {
       const { error } = await supabase
         .from("notifications")
         .update({ is_read: true })
         .eq("user_id", user.id)
         .eq("is_read", false);
+
       if (error) throw error;
-      await fetchAll();
+      // Real-time listener or fetchAll will sync eventually,
+      // but we stay with optimistic state for now.
     } catch (e: any) {
+      setItems(previousItems); // Rollback
       toast({ title: "Error", description: e?.message || "Failed to mark read", variant: "destructive" });
+    } finally {
+      setMarkingAllRead(false);
+    }
+  };
+
+  const clearAll = async () => {
+    if (!user || items.length === 0) return;
+    if (!confirm("Are you sure you want to clear all notifications? This action cannot be undone.")) return;
+
+    setClearingAll(true);
+    const previousItems = [...items];
+    setItems([]);
+
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("user_id", user.id);
+      if (error) throw error;
+    } catch (e: any) {
+      setItems(previousItems);
+      toast({ title: "Error", description: e?.message || "Failed to clear notifications", variant: "destructive" });
+    } finally {
+      setClearingAll(false);
     }
   };
 
@@ -161,9 +204,47 @@ export default function Notifications() {
             {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
-          <CheckCircle2 className="w-4 h-4 mr-2" /> Mark all read
-        </Button>
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={markAllRead} 
+                  disabled={unreadCount === 0 || markingAllRead}
+                  className="rounded-full w-9 h-9"
+                >
+                  {markingAllRead ? (
+                    <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Mark all read</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={clearAll} 
+                  disabled={items.length === 0 || clearingAll}
+                  className="rounded-full w-9 h-9 text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  {clearingAll ? (
+                    <div className="w-4 h-4 rounded-full border-2 border-muted-foreground border-t-transparent animate-spin" />
+                  ) : (
+                    <Brush className="w-4 h-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear all notifications</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
 
       {loading ? (

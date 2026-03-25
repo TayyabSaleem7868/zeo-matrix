@@ -39,12 +39,14 @@ const Feed = () => {
 
   const pageSize = 15;
 
-  const fetchPage = async (cursor?: { created_at: string; id: string } | null) => {
-    if (!user) return { rows: [] as PostWithProfile[], nextCursor: null as any };
+  const feedSeed = useMemo(() => Math.random().toString(36).substring(7), []);
+
+  const fetchPage = async (offset: number = 0) => {
+    if (!user) return { rows: [] as PostWithProfile[], nextOffset: null as any };
     const { data, error } = await (supabase as any).rpc("get_feed_page", {
       p_limit: pageSize,
-      p_cursor_created_at: cursor?.created_at ?? null,
-      p_cursor_id: cursor?.id ?? null,
+      p_offset: offset,
+      p_seed: feedSeed,
     });
 
     if (error) throw error;
@@ -78,10 +80,9 @@ const Feed = () => {
       isLiked: userLikesSet.has(r.id),
     }));
 
-    const last = rows[rows.length - 1];
     return {
       rows: posts,
-      nextCursor: last ? { created_at: last.created_at, id: last.id } : null,
+      nextOffset: rows.length === pageSize ? offset + pageSize : null,
     };
   };
 
@@ -94,10 +95,10 @@ const Feed = () => {
     refetch,
     error,
   } = useInfiniteQuery({
-    queryKey: ["feed"],
-    queryFn: ({ pageParam }) => fetchPage(pageParam ?? null),
-    initialPageParam: null as any,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    queryKey: ["feed", feedSeed],
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextOffset,
     enabled: !!user,
     staleTime: 10_000,
   });

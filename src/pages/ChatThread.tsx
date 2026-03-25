@@ -151,31 +151,57 @@ const ChatHeader = memo(({
 ));
 
 const AudioWaveform = ({ audioRef, mine, isPlaying }: { audioRef: React.RefObject<HTMLAudioElement>, mine: boolean, isPlaying: boolean }) => {
-  const [bars, setBars] = useState<number[]>(Array(18).fill(3));
+  const [bars, setBars] = useState<number[]>([]);
+  const [progress, setProgress] = useState(0);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const animFrameFreqRef = useRef<number | null>(null);
+  const animFrameProgRef = useRef<number | null>(null);
+
+  // Generate a deterministic but random-looking static waveform
+  const staticBars = useMemo(() => {
+    const b = [];
+    const BAR_COUNT = 32;
+    for (let i = 0; i < BAR_COUNT; i++) {
+      // Use a more "natural" waveform distribution
+      const val = Math.abs(Math.sin(i * 0.4) * Math.cos(i * 0.1)) * 0.7 + 0.2;
+      b.push(Math.max(4, Math.round(val * 22)));
+    }
+    return b;
+  }, []);
 
   useEffect(() => {
     if (!audioRef.current) return;
     const audio = audioRef.current;
 
+    const updateProgress = () => {
+      if (audio.duration) {
+        setProgress((audio.currentTime / audio.duration) * 100);
+      }
+      if (isPlaying) {
+        animFrameProgRef.current = requestAnimationFrame(updateProgress);
+      }
+    };
+
     const init = () => {
-      if (!audioCtxRef.current) {
-        const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
-        const ctx = new AudioContextClass();
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 64;
+      if (!audioCtxRef.current && isPlaying) {
+        try {
+          const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+          const ctx = new AudioContextClass();
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 128;
 
-        // Connect source to analyser
-        const source = ctx.createMediaElementSource(audio);
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
+          const source = ctx.createMediaElementSource(audio);
+          source.connect(analyser);
+          analyser.connect(ctx.destination);
 
-        audioCtxRef.current = ctx;
-        analyserRef.current = analyser;
-        sourceRef.current = source;
+          audioCtxRef.current = ctx;
+          analyserRef.current = analyser;
+          sourceRef.current = source;
+        } catch (e) {
+          console.error("AudioContext init failed:", e);
+        }
       }
     };
 
@@ -185,14 +211,15 @@ const AudioWaveform = ({ audioRef, mine, isPlaying }: { audioRef: React.RefObjec
       analyserRef.current.getByteFrequencyData(dataArr);
 
       const newBars: number[] = [];
-      const BAR_COUNT = 18;
+      const BAR_COUNT = 32;
       const step = Math.floor(dataArr.length / BAR_COUNT);
       for (let i = 0; i < BAR_COUNT; i++) {
         const v = dataArr[i * step] / 255;
-        newBars.push(Math.max(3, Math.round(v * 24)));
+        const liveVal = Math.max(4, Math.round(v * 24));
+        newBars.push(liveVal);
       }
       setBars(newBars);
-      animFrameRef.current = requestAnimationFrame(tick);
+      animFrameFreqRef.current = requestAnimationFrame(tick);
     };
 
     if (isPlaying) {
@@ -201,30 +228,42 @@ const AudioWaveform = ({ audioRef, mine, isPlaying }: { audioRef: React.RefObjec
         audioCtxRef.current.resume();
       }
       tick();
+      updateProgress();
     } else {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      setBars(Array(18).fill(3));
+      if (animFrameFreqRef.current) cancelAnimationFrame(animFrameFreqRef.current);
+      if (animFrameProgRef.current) cancelAnimationFrame(animFrameProgRef.current);
+      setBars([]);
     }
 
     return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (animFrameFreqRef.current) cancelAnimationFrame(animFrameFreqRef.current);
+      if (animFrameProgRef.current) cancelAnimationFrame(animFrameProgRef.current);
     };
   }, [isPlaying, audioRef]);
 
+  const displayBars = bars.length > 0 ? bars : staticBars;
+
   return (
-    <div className="flex items-center gap-[2.5px] h-6 flex-1 justify-center px-1">
-      {bars.map((h, i) => (
-        <div
-          key={i}
-          className={`rounded-full transition-all ${mine ? 'bg-primary-foreground/40' : 'bg-primary/40'}`}
-          style={{
-            width: '2.5px',
-            height: `${h}px`,
-            transitionDuration: '75ms',
-            transitionTimingFunction: 'ease-out',
-          }}
-        />
-      ))}
+    <div className="flex items-center gap-[1.5px] h-8 flex-1 justify-center px-1 group/wave">
+      {displayBars.map((h, i) => {
+        const barProgress = (i / displayBars.length) * 100;
+        const isPlayed = barProgress < progress;
+        return (
+          <div
+            key={i}
+            className={`rounded-full transition-all duration-75 ${
+              isPlayed 
+                ? (mine ? 'bg-white' : 'bg-primary') 
+                : (mine ? 'bg-white/30' : 'bg-primary/20')
+            }`}
+            style={{
+              width: '2px',
+              height: `${h}px`,
+              transitionTimingFunction: 'ease-out',
+            }}
+          />
+        );
+      })}
     </div>
   );
 };
@@ -297,18 +336,18 @@ const RecordingBar = memo(({
   };
 
   return (
-    <div className="h-12 sm:h-11 flex items-center gap-3 px-4 bg-primary/10 border border-primary/20 rounded-2xl flex-1">
-      <span className="relative flex h-3 w-3 shrink-0">
+    <div className="h-11 flex items-center gap-2 sm:gap-3 px-2 sm:px-4 bg-primary/10 border border-primary/20 rounded-2xl flex-1 min-w-0 overflow-hidden">
+      <span className="relative flex h-2 w-2 sm:h-3 sm:w-3 shrink-0 ml-1">
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
-        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+        <span className="relative inline-flex rounded-full h-2 w-2 sm:h-3 sm:w-3 bg-red-500" />
       </span>
-      <div className="flex items-center gap-[3px] flex-1 h-8 overflow-hidden justify-center px-2">
+      <div className="flex items-center gap-[2px] sm:gap-[3px] flex-1 h-8 overflow-hidden justify-center px-1 sm:px-2">
         {waveBars.map((h, i) => (
           <div
             key={i}
-            className="rounded-full bg-gradient-to-b from-primary/40 via-primary to-primary/40 transition-all shadow-[0_0_8px_rgba(var(--primary),0.2)]"
+            className="rounded-full bg-primary/60 transition-all shadow-[0_0_8px_rgba(var(--primary),0.1)]"
             style={{
-              width: '3.5px',
+              width: '2px',
               height: `${Math.max(4, h)}px`,
               transitionDuration: '75ms',
               transitionTimingFunction: 'ease-out',
@@ -316,7 +355,7 @@ const RecordingBar = memo(({
           />
         ))}
       </div>
-      <span className="text-xs font-bold text-primary tabular-nums shrink-0">{formatDuration(duration)}</span>
+      <span className="text-[11px] sm:text-xs font-bold text-primary tabular-nums shrink-0 mr-1">{formatDuration(duration)}</span>
     </div>
   );
 });
@@ -337,7 +376,7 @@ const ChatComposer = memo(({
   editingMsg: MessageRow | null;
   setReplyTo: (m: MessageRow | null) => void;
   setEditingMsg: (m: MessageRow | null) => void;
-  onLoadThread: () => void;
+  onLoadThread: (isInitial?: boolean, forceScroll?: boolean) => void;
   onShowMicDialog: () => void;
 }) => {
   const [text, setText] = useState("");
@@ -455,7 +494,7 @@ const ChatComposer = memo(({
               attachment_url,
               attachment_type: "audio/webm",
             } as any);
-            onLoadThread();
+            onLoadThread(false, true);
           } catch (e) {
             toast({ title: "Upload failed", description: "Could not send voice message", variant: "destructive" });
           } finally { setSending(false); }
@@ -533,7 +572,7 @@ const ChatComposer = memo(({
       setReplyTo(null);
       setSelectedMedia(null);
       setTypingStatus(false);
-      onLoadThread();
+      onLoadThread(false, true);
     } catch (e: any) {
       toast({ title: "Send failed", description: e?.message || "Couldn't send message", variant: "destructive" });
     } finally {
@@ -572,11 +611,11 @@ const ChatComposer = memo(({
 
         <div className="relative flex-1">
           {isRecording ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 w-full">
               <RecordingBar duration={recordingDuration} waveBars={waveBars} />
               <button
                 onClick={cancelRecording}
-                className="w-11 h-11 rounded-full bg-muted border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground transition-all active:scale-90 shrink-0"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-muted border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground transition-all active:scale-90 shrink-0"
                 title="Cancel"
               >
                 <X className="w-5 h-5" />
@@ -750,25 +789,48 @@ const MessageItem = memo(({
                   ) : m.attachment_type?.startsWith("video/") ? (
                     <video src={m.attachment_url} controls className="rounded-xl w-full max-h-64 object-cover" />
                   ) : m.attachment_type?.startsWith("audio/") ? (
-                    <div className={`flex items-center gap-3 p-3 rounded-2xl min-w-[200px] ${mine ? 'bg-white/10' : 'bg-background/40'}`}>
-                      <audio src={m.attachment_url} ref={audioRef} className="hidden" onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onEnded={() => setIsPlaying(false)} />
+                    <div className={`flex items-center gap-3 p-3 rounded-2xl w-full max-w-[240px] sm:max-w-[280px] shadow-sm transition-all ${
+                      mine ? 'bg-white/10 hover:bg-white/15' : 'bg-card/40 hover:bg-card/60'
+                    }`}>
+                      <audio
+                        src={m.attachment_url}
+                        ref={audioRef}
+                        className="hidden"
+                        crossOrigin="anonymous"
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                        onEnded={() => setIsPlaying(false)}
+                      />
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           if (!audioRef.current) return;
+
+                          // Ensure AudioContext is resumed/started on user click
                           if (audioRef.current.paused) {
-                            audioRef.current.play();
+                            audioRef.current.play().catch(err => {
+                              console.error("Playback failed:", err);
+                            });
                           } else {
                             audioRef.current.pause();
                           }
                         }}
-                        className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary-foreground hover:scale-105 transition-all outline-none"
+                        className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-md ${
+                          mine ? 'bg-white text-primary' : 'bg-primary text-primary-foreground'
+                        } hover:scale-105`}
                       >
-                        {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+                        {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
                       </button>
-                      <div className="flex-1 flex flex-col justify-center">
+                      <div className="flex-1 flex flex-col justify-center gap-1 min-w-0">
                         <AudioWaveform audioRef={audioRef} mine={mine} isPlaying={isPlaying} />
-                        <p className="text-[9px] mt-1 opacity-60 uppercase tracking-tighter font-bold">VoiceMessage</p>
+                        <div className="flex items-center justify-between px-1">
+                          <p className={`text-[9px] uppercase tracking-wider font-bold opacity-60`}>Voice Message</p>
+                          {audioRef.current?.duration && (
+                            <p className="text-[9px] font-mono opacity-60">
+                              {Math.floor(audioRef.current.duration / 60)}:{(Math.floor(audioRef.current.duration % 60)).toString().padStart(2, '0')}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -923,7 +985,7 @@ export default function ChatThread() {
     });
   };
 
-  const loadThread = useCallback(async (isInitial = true) => {
+  const loadThread = useCallback(async (isInitial = true, forceScroll = false) => {
     if (!user || !convId) return;
     if (isInitial) setLoading(true);
     try {
@@ -994,7 +1056,7 @@ export default function ChatThread() {
       const lastMsg = msgList.length ? msgList[msgList.length - 1] : null;
       if (lastMsg) markRead(lastMsg.id);
 
-      if (isInitial) {
+      if (isInitial || forceScroll) {
         requestAnimationFrame(() => scrollToBottom());
       }
     } catch (e: any) {
@@ -1225,7 +1287,7 @@ export default function ChatThread() {
 
   return (
     <>
-      <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4">
+      <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 flex flex-col h-[calc(100dvh-5rem)] md:h-[100dvh]">
         <ChatHeader
           title={title}
           other={other}
@@ -1236,9 +1298,9 @@ export default function ChatThread() {
           onClear={clearChat}
         />
 
-        <div className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm overflow-hidden">
+        <div className="flex-1 rounded-3xl border border-border bg-card/40 backdrop-blur-sm overflow-hidden flex flex-col min-h-0">
           <div
-            className="h-[60vh] overflow-auto px-4 py-5 sm:py-4 space-y-4 sm:space-y-2"
+            className="flex-1 overflow-y-auto px-4 py-5 sm:py-4 space-y-4 sm:space-y-2 min-h-0"
             onClick={() => setActionsForMessageId(null)}
           >
             {loading ? (

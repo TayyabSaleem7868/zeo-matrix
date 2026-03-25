@@ -265,7 +265,7 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
       </div>
 
       {contentText && (
-        <p className="text-foreground/90 mb-4 text-[15px] leading-relaxed whitespace-pre-wrap px-1">
+        <p className="text-foreground/90 mb-4 text-[15px] leading-relaxed whitespace-pre-wrap break-words px-1">
           {renderContentWithMentions(contentText, mentionMap, {
             canRemove: user?.id === post.user_id,
             onRemove: removeMention,

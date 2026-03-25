@@ -11,11 +11,11 @@ CREATE INDEX IF NOT EXISTS idx_follows_follower_following
   ON public.follows (follower_id, following_id);
 
 CREATE INDEX IF NOT EXISTS idx_follows_following_follower
-  ON public.follows (following_id, follower_id);
+  ON public.follows (following_id, follower_id);
 CREATE OR REPLACE FUNCTION public.get_feed_page(
   p_limit INT DEFAULT 20,
-  p_cursor_created_at TIMESTAMPTZ DEFAULT NULL,
-  p_cursor_id UUID DEFAULT NULL
+  p_offset INT DEFAULT 0,
+  p_seed TEXT DEFAULT ''
 )
 RETURNS TABLE (
   id UUID,
@@ -45,13 +45,13 @@ AS $$
     JOIN public.profiles pr ON pr.user_id = p.user_id
     JOIN me ON true
     JOIN follow_count fc ON true
-    WHERE
+    WHERE
       (
         (fc.cnt > 0 AND (p.user_id = me.uid OR EXISTS (
           SELECT 1 FROM public.follows f
           WHERE f.follower_id = me.uid
             AND f.following_id = p.user_id
-        )))
+        )))
         OR (fc.cnt = 0)
       )
       AND (
@@ -63,10 +63,6 @@ AS $$
           WHERE f2.follower_id = me.uid
             AND f2.following_id = pr.user_id
         )
-      )
-      AND (
-        p_cursor_created_at IS NULL
-        OR (p.created_at, p.id) < (p_cursor_created_at, p_cursor_id)
       )
   )
   SELECT
@@ -82,9 +78,10 @@ AS $$
     COALESCE(pr.is_verified, false) AS is_verified
   FROM visible_posts vp
   JOIN public.profiles pr ON pr.user_id = vp.user_id
-  ORDER BY vp.created_at DESC, vp.id DESC
+  ORDER BY md5(vp.id::text || p_seed)
+  OFFSET p_offset
   LIMIT p_limit;
 $$;
 
-REVOKE ALL ON FUNCTION public.get_feed_page(INT, TIMESTAMPTZ, UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_feed_page(INT, TIMESTAMPTZ, UUID) TO authenticated;
+REVOKE ALL ON FUNCTION public.get_feed_page(INT, INT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_feed_page(INT, INT, TEXT) TO authenticated;
