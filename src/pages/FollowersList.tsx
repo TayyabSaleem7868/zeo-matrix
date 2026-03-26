@@ -19,7 +19,7 @@ type ProfileRow = {
 };
 
 export default function FollowersList() {
-  const { userId } = useParams();
+  const { username } = useParams();
   const { user } = useAuth();
   const { toast } = useToast();
   const [owner, setOwner] = useState<ProfileRow | null>(null);
@@ -48,22 +48,27 @@ export default function FollowersList() {
 
   useEffect(() => {
     const run = async () => {
-      if (!userId) return;
+      if (!username) return;
       setLoading(true);
       try {
         const { data: ownerProfile, error: oErr } = await supabase
           .from("profiles")
           .select("user_id, username, display_name, avatar_url, is_verified, is_private, followers_bonus")
-          .eq("user_id", userId)
+          .eq("username", username)
           .maybeSingle();
         if (oErr) throw oErr;
         const op = (ownerProfile as any) as ProfileRow | null;
+        if (!op) {
+          setLoading(false);
+          return;
+        }
         setOwner(op);
+        const ownerId = op.user_id;
 
         const { data: followerRows, error } = await supabase
           .from("follows")
           .select("follower_id")
-          .eq("following_id", userId)
+          .eq("following_id", ownerId)
           .order("created_at", { ascending: false })
           .limit(200);
         if (error) throw error;
@@ -110,12 +115,12 @@ export default function FollowersList() {
       }
     };
     run();
-  }, [toast, userId]);
+  }, [toast, username]);
 
   if (!canView) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10">
-        <div className="bg-card/40 border border-border rounded-3xl p-6 text-center">
+        <div className="bg-background/60 backdrop-blur-xl border-2 border-border/50 rounded-3xl p-6 text-center shadow-xl">
           <h2 className="text-xl font-display font-bold text-foreground">Private account</h2>
           <p className="text-sm text-muted-foreground mt-2">Followers list is hidden.</p>
         </div>
@@ -144,7 +149,7 @@ export default function FollowersList() {
           <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50">
+        <div className="text-center py-20 bg-background/40 backdrop-blur-xl rounded-3xl border-2 border-dashed border-border/50 shadow-inner">
           <p className="font-display text-lg text-muted-foreground">No followers</p>
         </div>
       ) : (
@@ -182,7 +187,7 @@ export default function FollowersList() {
                       description: "The account is private so you cannot access to it.",
                     });
                   }}
-                  className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border hover:border-primary/30 transition-all cursor-pointer"
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-background/60 backdrop-blur-xl border-2 border-border/50 hover:bg-background/40 hover:border-primary/30 transition-all cursor-pointer shadow-lg shadow-black/10"
                 >
                   {content}
                 </div>
@@ -192,8 +197,8 @@ export default function FollowersList() {
             return (
               <Link
                 key={p.user_id}
-                to={`/profile/${p.user_id}`}
-                className="flex items-center gap-3 p-3 rounded-2xl bg-card border border-border hover:border-primary/30 transition-all"
+                to={`/profile/${p.username}`}
+                className="flex items-center gap-3 p-3 rounded-2xl bg-background/60 backdrop-blur-xl border-2 border-border/50 hover:bg-background/40 hover:border-primary/30 transition-all shadow-lg shadow-black/10"
               >
                 {content}
               </Link>

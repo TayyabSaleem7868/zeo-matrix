@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import PostCard from "@/components/PostCard";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Trash2, AlertTriangle } from "lucide-react";
+import { Camera, Settings as SettingsIcon } from "lucide-react";
 import { useRef } from "react";
 import AvatarCropper from "@/components/AvatarCropper";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
@@ -43,7 +43,7 @@ interface ProfileData {
 }
 
 const Profile = () => {
-  const { userId } = useParams();
+  const { username } = useParams();
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -57,25 +57,24 @@ const Profile = () => {
   const [editBio, setEditBio] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [startingDm, setStartingDm] = useState(false);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const isOwner = user?.id === userId;
-  const isGhost = userId?.startsWith("ghost-");
+  const isOwner = user && profile && user.id === profile.user_id;
+  const isGhost = username?.startsWith("ghost-");
   const canViewPrivateContent = !profile?.is_private || isOwner || isFollowing;
   const showPrivateMock = isGhost && !isOwner;
 
   const startDm = async () => {
-    if (!user || !userId) return;
-    if (user.id === userId) return;
+    if (!user || !profile) return;
+    if (user.id === profile.user_id) return;
 
     setStartingDm(true);
     try {
       const { data, error } = await (supabase as any).rpc("get_or_create_dm", {
-        p_other_user_id: userId,
+        p_other_user_id: profile.user_id,
       });
       if (error) throw error;
 
@@ -98,13 +97,13 @@ const Profile = () => {
     setLoading(true);
 
     // Ghost Profile Handing
-    if (userId.startsWith("ghost-")) {
-      const ghostId = userId.replace("ghost-", "");
+    if (username && username.startsWith("ghost-")) {
+      const ghostId = username.replace("ghost-", "");
       const index = (parseInt(ghostId) - 1) % DIVERSE_GHOST_NAMES.length;
       const nameData = DIVERSE_GHOST_NAMES[index >= 0 ? index : 0];
 
       setProfile({
-        user_id: userId,
+        user_id: `ghost-${ghostId}`,
         username: `${nameData.username}_${ghostId}`,
         display_name: nameData.name,
         bio: `This is a verified Zeo Matrix user from the ${["Muslim", "Jewish", "Hindu", "Christian"][Math.floor(index / 5)] || "Global"} community.`,
@@ -122,18 +121,36 @@ const Profile = () => {
 
     try {
 
-      const [profileRes, postsRes, followersRes, followingRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("posts").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-        supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", userId),
-        supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", userId)
-      ]);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(username || "");
 
-      if (profileRes.data) {
-        setProfile(profileRes.data);
-        setEditBio(profileRes.data.bio || "");
-        setEditDisplayName(profileRes.data.display_name || "");
+      const { data: prof, error: pErr } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq(isUuid ? "user_id" : "username", username)
+        .maybeSingle();
+
+      if (!prof) {
+        setProfile(null);
+        setLoading(false);
+        return;
       }
+
+      if (isUuid && prof.username) {
+        navigate(`/profile/${prof.username}`, { replace: true });
+        return;
+      }
+
+      setProfile(prof);
+      setEditBio(prof.bio || "");
+      setEditDisplayName(prof.display_name || "");
+
+      const userIdFromProf = prof.user_id;
+
+      const [postsRes, followersRes, followingRes] = await Promise.all([
+        supabase.from("posts").select("*").eq("user_id", userIdFromProf).order("created_at", { ascending: false }),
+        supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", userIdFromProf),
+        supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", userIdFromProf)
+      ]);
 
       setFollowersCount(followersRes.count ?? 0);
       setFollowingCount(followingRes.count ?? 0);
@@ -165,17 +182,17 @@ const Profile = () => {
         }
       }
 
-      if (user && user.id !== userId) {
-        const { data } = await supabase.from("follows").select("id").eq("follower_id", user.id).eq("following_id", userId).maybeSingle();
+      if (user && user.id !== userIdFromProf) {
+        const { data } = await supabase.from("follows").select("id").eq("follower_id", user.id).eq("following_id", userIdFromProf).maybeSingle();
         setIsFollowing(!!data);
 
-        const isPrivate = (profileRes.data as any)?.is_private;
+        const isPrivate = prof.is_private;
         if (isPrivate && !data) {
           const { data: req } = await supabase
             .from("follow_requests")
             .select("id, status")
             .eq("requester_id", user.id)
-            .eq("target_id", userId)
+            .eq("target_id", userIdFromProf)
             .eq("status", "pending")
             .maybeSingle();
           setFollowState(req ? "requested" : "none");
@@ -189,23 +206,24 @@ const Profile = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId, user, toast]);
+  }, [username, user, toast]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const toggleFollow = async () => {
-    if (!user || !userId) return;
+    if (!user || !profile) return;
+    const targetId = profile.user_id;
 
-    if (profile?.is_private && user.id !== userId) {
+    if (profile?.is_private && user.id !== targetId) {
       try {
         if (followState === "requested") {
           const { error } = await supabase
             .from("follow_requests")
             .delete()
             .eq("requester_id", user.id)
-            .eq("target_id", userId)
+            .eq("target_id", targetId)
             .eq("status", "pending");
           if (error) throw error;
           setFollowState("none");
@@ -213,7 +231,7 @@ const Profile = () => {
           return;
         }
 
-        const { data, error } = await (supabase as any).rpc("request_follow", { target_user_id: userId });
+        const { data, error } = await (supabase as any).rpc("request_follow", { target_user_id: targetId });
         if (error) throw error;
 
         if (data === "followed") {
@@ -239,7 +257,7 @@ const Profile = () => {
           .from("follows")
           .delete()
           .eq("follower_id", user.id)
-          .eq("following_id", userId);
+          .eq("following_id", targetId);
 
         if (error) throw error;
 
@@ -248,7 +266,7 @@ const Profile = () => {
       } else {
         const { error } = await supabase
           .from("follows")
-          .insert({ follower_id: user.id, following_id: userId });
+          .insert({ follower_id: user.id, following_id: targetId });
 
         if (error) throw error;
 
@@ -261,12 +279,12 @@ const Profile = () => {
           .from("follows")
           .select("id")
           .eq("follower_id", user.id)
-          .eq("following_id", userId)
+          .eq("following_id", targetId)
           .maybeSingle(),
         supabase
           .from("follows")
           .select("*", { count: "exact", head: true })
-          .eq("following_id", userId),
+          .eq("following_id", targetId),
       ]);
 
       setIsFollowing(!!followRes.data);
@@ -281,23 +299,21 @@ const Profile = () => {
         variant: "destructive",
       });
 
-      if (user && userId) {
-        const [{ data }, followersRes] = await Promise.all([
-          supabase
-            .from("follows")
-            .select("id")
-            .eq("follower_id", user.id)
-            .eq("following_id", userId)
-            .maybeSingle(),
-          supabase
-            .from("follows")
-            .select("*", { count: "exact", head: true })
-            .eq("following_id", userId),
-        ]);
-        setIsFollowing(!!data);
-        setFollowState(!!data ? "following" : "none");
-        setFollowersCount(followersRes.count ?? 0);
-      }
+      const [{ data }, followersRes] = await Promise.all([
+        supabase
+          .from("follows")
+          .select("id")
+          .eq("follower_id", user.id)
+          .eq("following_id", targetId)
+          .maybeSingle(),
+        supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("following_id", targetId),
+      ]);
+      setIsFollowing(!!data);
+      setFollowState(!!data ? "following" : "none");
+      setFollowersCount(followersRes.count ?? 0);
     }
   };
 
@@ -328,20 +344,7 @@ const Profile = () => {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase.rpc("delete_user_account");
-      if (error) throw error;
 
-      await supabase.auth.signOut();
-      toast({ title: "Account Deleted", description: "Your account has been successfully removed." });
-      window.location.href = "/";
-    } catch (error: any) {
-      toast({ title: "Deletion failed", description: error.message, variant: "destructive" });
-      setIsDeleting(false);
-    }
-  };
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -422,7 +425,7 @@ const Profile = () => {
         />
       )}
       <div className="relative mb-8 sm:mb-12">
-        <div className="h-40 sm:h-48 md:h-52 rounded-2xl overflow-hidden relative group/cover bg-gradient-to-br from-primary/30 to-accent/30 shadow-inner">
+        <div className="h-40 sm:h-48 md:h-52 rounded-2xl overflow-hidden relative group/cover bg-primary/20 shadow-inner">
           {profile.cover_url ? (
             <img
               src={profile.cover_url}
@@ -440,11 +443,20 @@ const Profile = () => {
                 e.stopPropagation();
                 coverRef.current?.click();
               }}
-              className="absolute bottom-4 right-4 p-3 rounded-full bg-black/60 backdrop-blur-md border border-white/30 shadow-2xl opacity-0 group-hover/cover:opacity-100 transition-all duration-300 z-20 hover:scale-110 hover:bg-black/80 active:scale-95"
+              className="absolute bottom-4 right-4 p-3 rounded-full bg-background/60 backdrop-blur-xl border-2 border-border/50 shadow-2xl opacity-0 group-hover/cover:opacity-100 transition-all duration-300 z-20 hover:scale-110 hover:bg-background/80 active:scale-95"
               title="Change Cover"
             >
               <Camera className="w-6 h-6 text-white" />
             </button>
+          )}
+          {isOwner && (
+            <Link 
+              to="/settings"
+              className="absolute top-4 right-4 p-3 rounded-full bg-background/60 backdrop-blur-xl border-2 border-border/50 shadow-2xl transition-all duration-300 z-20 hover:scale-110 hover:bg-background/80 active:scale-95 group/settings"
+              title="Settings"
+            >
+              <SettingsIcon className="w-5 h-5 text-white group-hover/settings:rotate-90 transition-transform duration-500" />
+            </Link>
           )}
           <input ref={coverRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
         </div>
@@ -474,7 +486,7 @@ const Profile = () => {
                   e.stopPropagation();
                   avatarRef.current?.click();
                 }}
-                className="absolute bottom-0 right-0 p-2.5 rounded-full bg-black/60 backdrop-blur-md border border-white/30 shadow-2xl z-20 hover:scale-115 transition-all active:scale-90 group/cam hover:bg-black/80"
+                className="absolute bottom-0 right-0 p-2.5 rounded-full bg-background/60 backdrop-blur-xl border-2 border-border/50 shadow-2xl z-20 hover:scale-115 transition-all active:scale-90 group/cam hover:bg-background/80"
                 title="Change Avatar"
               >
                 <Camera className="w-4 h-4 text-white group-hover/cam:rotate-12 transition-transform" />
@@ -558,47 +570,12 @@ const Profile = () => {
 
         {editing ? (
           <div className="space-y-4 mt-4">
-            <Textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} placeholder="Tell us about yourself..." className="rounded-xl border-border/40 focus:border-primary/50" />
-
-            <div className="p-4 rounded-2xl border border-destructive/20 bg-destructive/5">
-              <h3 className="text-xs font-bold text-destructive mb-2 uppercase tracking-widest flex items-center gap-2">
-                <AlertTriangle className="w-3.5 h-3.5" /> Danger Zone
-              </h3>
-              <p className="text-[11px] text-muted-foreground mb-4">Deleting your account is permanent and cannot be undone.</p>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="w-full sm:w-auto h-9 font-bold rounded-xl"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" /> Delete Account
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="bg-card border-border/40 border-2 rounded-3xl">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-                      <AlertTriangle className="w-6 h-6 text-destructive" /> Permanent Deletion
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="text-muted-foreground text-sm pt-2">
-                      Are you absolutely sure? This will permanently remove your
-                      entire presence, posts, and data from Zeo Matrix.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter className="pt-4 gap-2 sm:gap-0">
-                    <AlertDialogCancel className="bg-secondary text-foreground hover:bg-secondary/80 rounded-2xl px-6 border-0">Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteAccount}
-                      className="bg-destructive text-white hover:bg-destructive/90 transition-all font-bold rounded-2xl px-8"
-                      disabled={isDeleting}
-                    >
-                      {isDeleting ? "Deleting..." : "Delete Permanently"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+            <Textarea 
+              value={editBio} 
+              onChange={(e) => setEditBio(e.target.value)} 
+              placeholder="Tell us about yourself..." 
+              className="rounded-xl border-border/40 focus:border-primary/50 min-h-[120px]" 
+            />
           </div>
         ) : (
           profile.bio ? (
@@ -609,11 +586,11 @@ const Profile = () => {
         )}
 
         <div className="flex flex-wrap gap-6 mt-6 pb-2">
-          <Link to={`/profile/${userId}/following`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
+          <Link to={`/profile/${profile.username}/following`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
             <span className="text-base font-bold text-foreground tracking-tight">{followingCount}</span>
             <span className="text-sm text-muted-foreground font-medium">Following</span>
           </Link>
-          <Link to={`/profile/${userId}/followers`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
+          <Link to={`/profile/${profile.username}/followers`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
             <span className="text-base font-bold text-foreground tracking-tight">
               {formatNumber(followersCount + (profile?.followers_bonus || 0))}
             </span>
@@ -628,7 +605,7 @@ const Profile = () => {
 
       <div className="space-y-4">
         {(showPrivateMock || !canViewPrivateContent) ? (
-          <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50">
+          <div className="text-center py-20 bg-background/40 backdrop-blur-xl rounded-3xl border-2 border-dashed border-border/50 shadow-inner">
             <p className="font-display text-lg text-muted-foreground">This account is private</p>
             {!isOwner && (
               <p className="text-sm text-muted-foreground/60 mt-1">Follow to see posts.</p>

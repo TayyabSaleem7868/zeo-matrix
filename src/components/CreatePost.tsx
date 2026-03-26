@@ -201,7 +201,7 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
   };
 
   return (
-    <div className="p-4 sm:p-6 rounded-[2rem] bg-card/50 border border-border/50 backdrop-blur-sm shadow-sm">
+    <div className="p-4 sm:p-6 rounded-[2rem] bg-background/60 border border-border/50 backdrop-blur-xl shadow-sm">
       <div className="mb-4">
         <Textarea
           ref={textareaRef}
@@ -272,7 +272,7 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
 
         {mentionOpen && (
           <div className="relative">
-            <div className="absolute left-0 right-0 mt-2 z-50 rounded-2xl border border-border/60 bg-background/90 backdrop-blur-md shadow-lg overflow-hidden">
+            <div className="absolute left-0 right-0 mt-2 z-50 rounded-2xl border-2 border-border/50 bg-background/60 backdrop-blur-xl shadow-lg overflow-hidden">
               <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border/50">
                 Tag someone by username
               </div>
@@ -351,23 +351,23 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
               ) : item.type === "pdf" ? (
                 <div className="flex flex-col items-center justify-center h-full w-full bg-background/70 backdrop-blur-md">
                   <span className="text-xs font-semibold">PDF</span>
-                  <a href={item.preview} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Open</a>
+                  <a href={item.preview} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open</a>
                 </div>
               ) : item.type === "doc" || item.type === "docx" ? (
                 <div className="flex flex-col items-center justify-center h-full w-full bg-background/70 backdrop-blur-md">
                   <span className="text-xs font-semibold">DOC{item.type === "docx" ? "X" : ""}</span>
-                  <a href={`https://docs.google.com/gview?url=${encodeURIComponent(item.preview)}&embedded=true`} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a>
+                  <a href={`https://docs.google.com/gview?url=${encodeURIComponent(item.preview)}&embedded=true`} target="_blank" rel="noopener noreferrer" className="text-primary underline">View</a>
                   <a href={item.preview} target="_blank" rel="noopener noreferrer" className="text-gray-600 underline text-xs mt-1">Download</a>
                 </div>
               ) : item.type === "zip" || item.type === "rar" ? (
                 <div className="flex flex-col items-center justify-center h-full w-full bg-background/70 backdrop-blur-md">
                   <span className="text-xs font-semibold">{item.type.toUpperCase()}</span>
-                  <a href={item.preview} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Download</a>
+                  <a href={item.preview} target="_blank" rel="noopener noreferrer" className="text-primary underline">Download</a>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full w-full bg-background/70 backdrop-blur-md">
                   <span className="text-xs font-semibold">File</span>
-                  <a href={item.preview} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Download</a>
+                  <a href={item.preview} target="_blank" rel="noopener noreferrer" className="text-primary underline">Download</a>
                 </div>
               )}
               <button

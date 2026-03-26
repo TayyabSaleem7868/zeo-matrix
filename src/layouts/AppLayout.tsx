@@ -6,6 +6,7 @@ import { PWAInstallButton } from "@/components/PWAInstallButton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, useSidebar } from "@/hooks/useSidebar";
+import { UnreadMessagesProvider } from "@/contexts/UnreadMessagesContext";
 
 const AppLayoutContent = () => {
   const { user } = useAuth();
@@ -13,9 +14,9 @@ const AppLayoutContent = () => {
   const { isCollapsed } = useSidebar();
 
   useEffect(() => {
-    const checkBanStatus = async () => {
-      if (!user) return;
+    if (!user) return;
 
+    const checkBanStatus = async () => {
       const { data, error } = await supabase
         .from("profiles")
         .select("is_banned")
@@ -28,6 +29,29 @@ const AppLayoutContent = () => {
     };
 
     checkBanStatus();
+
+    // Subscribe to real-time ban updates
+    const channel = supabase
+      .channel(`user-profile-${user.id}`)
+      .on(
+        "postgres_changes",
+        { 
+          event: "UPDATE", 
+          schema: "public", 
+          table: "profiles", 
+          filter: `user_id=eq.${user.id}` 
+        },
+        (payload) => {
+          if (payload.new.is_banned) {
+            navigate("/banned");
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, navigate]);
 
   return (
@@ -54,7 +78,9 @@ const AppLayoutContent = () => {
 
 const AppLayout = () => (
   <SidebarProvider>
-    <AppLayoutContent />
+    <UnreadMessagesProvider>
+      <AppLayoutContent />
+    </UnreadMessagesProvider>
   </SidebarProvider>
 );
 

@@ -27,7 +27,7 @@ const Landing = () => {
         {}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-primary/10 blur-[120px]" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-accent/10 blur-[120px]" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-primary/10 blur-[120px]" />
         </div>
 
         <div className="container mx-auto px-6 relative z-10">
@@ -72,7 +72,7 @@ const Landing = () => {
 
             {}
             <div className="hidden lg:flex justify-center relative h-[400px]">
-              <div className="absolute top-0 left-8 w-64 rounded-2xl bg-card border border-border p-4 shadow-lg animate-float">
+                    <div className="bg-background/60 backdrop-blur-xl p-8 rounded-3xl border-2 border-border/50 shadow-2xl overflow-hidden">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full overflow-hidden border border-border">
@@ -166,8 +166,8 @@ const Landing = () => {
       {}
       <section className="py-24">
         <div className="container mx-auto px-6 text-center">
-          <div className="max-w-2xl mx-auto p-12 rounded-3xl border border-border bg-card relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
+          <div className="max-w-2xl mx-auto p-12 rounded-[2.5rem] border-2 border-border/50 bg-background/60 backdrop-blur-xl relative overflow-hidden shadow-2xl">
+            <div className="absolute inset-0 bg-primary/5" />
             <div className="relative z-10">
               <h2 className="text-3xl font-display font-bold text-foreground mb-4">
                 {user ? "Jump back into Matrix" : "Ready to connect?"}

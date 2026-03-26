@@ -149,7 +149,7 @@ const VideoPlayer = ({
                     </div>
 
                     {}
-                    <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-t from-black/80 to-transparent">
+                    <div className="flex items-center gap-3 px-3 py-2 bg-black/60 backdrop-blur-sm">
                         <button
                             onClick={togglePlay}
                             className="text-white hover:text-primary transition-colors"

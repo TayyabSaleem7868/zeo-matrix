@@ -34,7 +34,7 @@ const ChartTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     const val = payload[0]?.value;
     return (
-        <div className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-md px-3 py-2 shadow-xl">
+        <div className="rounded-2xl border-2 border-border/50 bg-background/60 backdrop-blur-xl px-3 py-2 shadow-2xl">
             <p className="text-xs text-muted-foreground">{label}</p>
             <p className="text-sm font-bold text-foreground">posts: {val}</p>
         </div>
@@ -275,10 +275,11 @@ const AdminPanel = () => {
     };
 
     const toggleBan = async (userId: string, currentStatus: boolean) => {
-        const { error } = await supabase
-            .from("profiles")
-            .update({ is_banned: !currentStatus } as any)
-            .eq("user_id", userId);
+        const { error } = await (supabase as any).rpc("admin_toggle_ban", {
+            p_user_id: userId,
+            p_is_banned: !currentStatus,
+            p_admin_secret: adminSecret
+        });
 
         if (error) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -346,10 +347,10 @@ const AdminPanel = () => {
     if (!isAuthorized) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background px-4">
-                <div className="w-full max-w-md p-8 rounded-3xl bg-card border border-border shadow-2xl relative overflow-hidden">
+                <div className="w-full max-w-md p-8 rounded-3xl bg-background/60 backdrop-blur-xl border-2 border-border/50 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
                     <div className="flex flex-col items-center mb-8">
-                        <div className="w-16 h-16 rounded-2xl gradient-bg flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
+                        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
                             <Shield className="w-8 h-8 text-white" />
                         </div>
                         <h1 className="text-2xl font-display font-bold text-foreground">Admin Access</h1>
@@ -376,7 +377,7 @@ const AdminPanel = () => {
                                 className="bg-muted/30 border-none rounded-xl h-12 focus-visible:ring-1 focus-visible:ring-primary"
                             />
                         </div>
-                        <Button type="submit" className="w-full h-12 rounded-xl gradient-bg text-white font-bold text-lg shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] mt-4">
+                        <Button type="submit" className="w-full h-12 rounded-xl bg-primary text-white font-bold text-lg shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] mt-4">
                             Unlock Terminal
                         </Button>
                     </form>
@@ -389,7 +390,7 @@ const AdminPanel = () => {
         <div className="min-h-screen bg-background p-4 sm:p-8">
             <div className="max-w-6xl mx-auto">
                 <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                    <AlertDialogContent className="rounded-3xl">
+                    <AlertDialogContent className="bg-background/60 backdrop-blur-xl border-border/50 border-2 rounded-3xl shadow-2xl">
                         <AlertDialogHeader>
                             <AlertDialogTitle>Delete post?</AlertDialogTitle>
                             <AlertDialogDescription>
@@ -450,7 +451,7 @@ const AdminPanel = () => {
                 </header>
 
                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-                    <TabsList className="rounded-2xl">
+                    <TabsList className="rounded-2xl bg-background/50 backdrop-blur-lg border border-border/50 p-1">
                         <TabsTrigger value="users" className="rounded-xl">Users</TabsTrigger>
                         <TabsTrigger value="analytics" className="rounded-xl">Analytics</TabsTrigger>
                         <TabsTrigger value="spammers" className="rounded-xl">Spammers</TabsTrigger>
@@ -458,15 +459,15 @@ const AdminPanel = () => {
 
                     <TabsContent value="users" className="mt-6">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                            <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+                            <div className="bg-background/60 backdrop-blur-xl p-6 rounded-3xl border-2 border-border/50 shadow-xl transition-all hover:bg-background/40">
                                 <p className="text-muted-foreground text-sm mb-1">Total Users</p>
                                 <p className="text-3xl font-display font-bold text-foreground">{profiles.length}</p>
                             </div>
-                            <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+                            <div className="bg-background/60 backdrop-blur-xl p-6 rounded-3xl border-2 border-border/50 shadow-xl transition-all hover:bg-background/40">
                                 <p className="text-muted-foreground text-sm mb-1">Banned Users</p>
                                 <p className="text-3xl font-display font-bold text-destructive">{profiles.filter(p => p.is_banned).length}</p>
                             </div>
-                            <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+                            <div className="bg-background/60 backdrop-blur-xl p-6 rounded-3xl border-2 border-border/50 shadow-xl transition-all hover:bg-background/40">
                                 <p className="text-muted-foreground text-sm mb-1">Status</p>
                                 <div className="flex items-center gap-2 mt-2">
                                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -475,7 +476,7 @@ const AdminPanel = () => {
                             </div>
                         </div>
 
-                        <div className="bg-card rounded-3xl border border-border shadow-sm overflow-hidden overflow-x-auto">
+                        <div className="bg-background/60 backdrop-blur-xl rounded-3xl border-2 border-border/50 shadow-2xl overflow-hidden overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-muted/30">
@@ -494,7 +495,7 @@ const AdminPanel = () => {
                                         <tr key={p.user_id} className="hover:bg-muted/10 transition-colors">
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center overflow-hidden flex-shrink-0">
                                                         {p.avatar_url ? (
                                                             <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
                                                         ) : (
@@ -570,7 +571,7 @@ const AdminPanel = () => {
                         </div>
 
                         <AlertDialog open={deleteUserDialogOpen} onOpenChange={setDeleteUserDialogOpen}>
-                            <AlertDialogContent className="bg-card border-border/40 border-2 rounded-3xl">
+                            <AlertDialogContent className="bg-background/60 backdrop-blur-xl border-border/50 border-2 rounded-3xl shadow-2xl">
                                 <AlertDialogHeader>
                                     <AlertDialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
                                         <Trash2 className="w-6 h-6 text-destructive" /> Delete user
@@ -603,22 +604,22 @@ const AdminPanel = () => {
                         )}
 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                            <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+                            <div className="bg-background/60 backdrop-blur-xl p-6 rounded-3xl border-2 border-border/50 shadow-xl transition-all hover:bg-background/40">
                                 <p className="text-muted-foreground text-sm mb-1">Users (total)</p>
                                 <p className="text-3xl font-display font-bold text-foreground">{overview?.users_total ?? "—"}</p>
                                 <p className="text-xs text-muted-foreground mt-2">+{overview?.users_24h ?? "—"} last 24h</p>
                             </div>
-                            <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+                            <div className="bg-background/60 backdrop-blur-xl p-6 rounded-3xl border-2 border-border/50 shadow-xl transition-all hover:bg-background/40">
                                 <p className="text-muted-foreground text-sm mb-1">Posts (total)</p>
                                 <p className="text-3xl font-display font-bold text-foreground">{overview?.posts_total ?? "—"}</p>
                                 <p className="text-xs text-muted-foreground mt-2">+{overview?.posts_24h ?? "—"} last 24h</p>
                             </div>
-                            <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+                            <div className="bg-background/60 backdrop-blur-xl p-6 rounded-3xl border-2 border-border/50 shadow-xl transition-all hover:bg-background/40">
                                 <p className="text-muted-foreground text-sm mb-1">Likes (total)</p>
                                 <p className="text-3xl font-display font-bold text-foreground">{overview?.likes_total ?? "—"}</p>
                                 <p className="text-xs text-muted-foreground mt-2">Follows: {overview?.follows_total ?? "—"}</p>
                             </div>
-                            <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+                            <div className="bg-background/60 backdrop-blur-xl p-6 rounded-3xl border-2 border-border/50 shadow-xl transition-all hover:bg-background/40">
                                 <p className="text-muted-foreground text-sm mb-1">Comments (total)</p>
                                 <p className="text-3xl font-display font-bold text-foreground">{overview?.comments_total ?? "—"}</p>
                                 <p className="text-xs text-muted-foreground mt-2">+{overview?.posts_7d ?? "—"} posts last 7d</p>
@@ -626,7 +627,7 @@ const AdminPanel = () => {
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+                            <div className="bg-background/60 backdrop-blur-xl p-6 rounded-3xl border-2 border-border/50 shadow-xl">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
                                         <p className="text-sm font-bold text-foreground">Top users by posts</p>
@@ -650,7 +651,7 @@ const AdminPanel = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+                            <div className="bg-background/60 backdrop-blur-xl p-6 rounded-3xl border-2 border-border/50 shadow-xl">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
                                         <p className="text-sm font-bold text-foreground">Top posts by likes</p>
@@ -661,7 +662,7 @@ const AdminPanel = () => {
 
                                 <div className="space-y-3">
                                     {topPostsByLikes.map((p) => (
-                                        <div key={p.post_id} className="p-4 rounded-2xl border border-border bg-muted/10">
+                                        <div key={p.post_id} className="p-4 rounded-2xl border-2 border-border/50 bg-background/40 backdrop-blur-lg transition-all hover:bg-background/20">
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0">
                                                     <Link
@@ -707,7 +708,7 @@ const AdminPanel = () => {
                             </div>
                         )}
 
-                        <div className="bg-card rounded-3xl border border-border shadow-sm overflow-hidden overflow-x-auto">
+                        <div className="bg-background/60 backdrop-blur-xl rounded-3xl border-2 border-border/50 shadow-2xl overflow-hidden overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-muted/30">
@@ -726,7 +727,7 @@ const AdminPanel = () => {
                                         <tr key={s.user_id} className="hover:bg-muted/10 transition-colors">
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center overflow-hidden flex-shrink-0">
                                                         {s.avatar_url ? (
                                                             <img src={s.avatar_url} alt="" className="w-full h-full object-cover" />
                                                         ) : (

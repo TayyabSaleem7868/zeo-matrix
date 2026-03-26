@@ -81,7 +81,7 @@ const AvatarCropper = ({ imageSrc, onCropDone, onCancel }: AvatarCropperProps) =
     };
 
     return (
-        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 backdrop-blur-xl animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-background/60 backdrop-blur-xl animate-in fade-in duration-200">
             { }
             <div className="w-full max-w-md flex items-center justify-between px-4 py-3">
                 <button onClick={onCancel} className="p-2 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-all">

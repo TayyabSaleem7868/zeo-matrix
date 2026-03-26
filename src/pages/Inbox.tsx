@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageCircle, Pin, Search, Volume2, VolumeX } from "lucide-react";
+import { useUnreadContext } from "@/contexts/UnreadMessagesContext";
 
 type ConversationRow = {
   id: string;
@@ -52,6 +53,7 @@ export default function Inbox() {
   const [q, setQ] = useState("");
   const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { unreadCounts, mutedConversations } = useUnreadContext();
 
   const togglePin = async (conversationId: string, pinned: boolean) => {
     if (!user) return;
@@ -216,7 +218,7 @@ export default function Inbox() {
   }, [user?.id]);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
+    <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground flex items-center gap-2">
@@ -250,11 +252,19 @@ export default function Inbox() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((t) => (
+          {filtered.map((t) => {
+            const unreadCount = unreadCounts.get(t.conversationId) || 0;
+            const isMuted = mutedConversations.has(t.conversationId);
+            const isUnread = unreadCount > 0;
+            return (
             <Link
               key={t.conversationId}
               to={`/inbox/${t.conversationId}`}
-              className="block p-5 sm:p-4 rounded-2xl border bg-card border-border hover:border-primary/30 transition-all"
+              className={`block p-4 sm:p-5 border-b border-border/40 transition-all ${
+                isUnread && !isMuted
+                  ? "bg-primary/5 hover:bg-primary/10"
+                  : "hover:bg-muted/30"
+              }`}
             >
               <div className="flex items-start sm:items-center gap-4 sm:gap-3">
                 <div className="w-14 h-14 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-white/10 flex-shrink-0">
@@ -282,14 +292,17 @@ export default function Inbox() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="text-base sm:text-sm font-semibold text-foreground leading-snug truncate">
+                  <p className={`text-base sm:text-sm leading-snug truncate ${isUnread && !isMuted ? "font-bold text-foreground" : "font-semibold text-foreground"}`}>
                     <span className="inline-flex items-center gap-2">
+                      {isUnread && (
+                        <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${isMuted ? "bg-muted-foreground/40" : "bg-primary animate-pulse"}`} />
+                      )}
                       {t.other.display_name || t.other.username}
                       {t.pinnedAt && <Pin className="w-3.5 h-3.5 text-muted-foreground" />}
                     </span>
                     <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">@{t.other.username}</span>
                   </p>
-                  <p className="text-sm sm:text-sm text-muted-foreground leading-relaxed mt-1 overflow-hidden text-ellipsis">
+                  <p className={`text-sm sm:text-sm leading-relaxed mt-1 overflow-hidden text-ellipsis line-clamp-1 ${isUnread ? "text-foreground/80 font-medium" : "text-muted-foreground"}`}>
                     {t.lastMessage ? (
                       t.lastMessage.content ||
                       (t.lastMessage.attachment_type?.startsWith("image/") ? "Sent an image" :
@@ -302,10 +315,15 @@ export default function Inbox() {
                   </p>
                 </div>
 
-                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                   <p className="text-xs text-muted-foreground hidden sm:block">
                     {new Date(t.updatedAt).toLocaleDateString()}
                   </p>
+                  {isUnread && (
+                    <span className={`${isMuted ? "bg-muted-foreground/20 text-muted-foreground" : "bg-primary text-white"} text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm`}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
                   <div
                     className="flex items-center gap-1"
                     onClick={(e) => {
@@ -346,7 +364,8 @@ export default function Inbox() {
                 </div>
               </div>
             </Link>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>

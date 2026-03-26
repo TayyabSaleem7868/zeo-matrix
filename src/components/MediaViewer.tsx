@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight, Maximize2, Minimize2, MonitorPlay } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -87,7 +88,7 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
         }
     };
 
-    return (
+    return createPortal(
         <div
             className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-300"
             onClick={onClose}
@@ -198,7 +199,8 @@ const MediaViewer = ({ media, initialIndex = 0, isOpen, onClose }: MediaViewerPr
                     ))}
                 </div>
             )}
-        </div>
+        </div>,
+        document.body
     );
 };
 

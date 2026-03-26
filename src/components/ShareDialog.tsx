@@ -79,7 +79,7 @@ const ShareDialog = ({ isOpen, onClose, postUrl, postTitle }: ShareDialogProps) 
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-md bg-card border-border/40 rounded-[2rem] p-6 shadow-2xl">
+            <DialogContent className="sm:max-w-md bg-background/60 backdrop-blur-xl border-border/50 border-2 rounded-[2.5rem] p-6 shadow-2xl animate-in fade-in zoom-in duration-300">
                 <DialogHeader className="mb-4">
                     <DialogTitle className="text-xl font-display font-bold text-center">Share Post</DialogTitle>
                 </DialogHeader>
@@ -103,7 +103,7 @@ const ShareDialog = ({ isOpen, onClose, postUrl, postTitle }: ShareDialogProps) 
 
                 <div className="space-y-4">
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Page Link</label>
-                    <div className="flex items-center gap-2 p-1.5 bg-muted/30 rounded-2xl border border-border/50">
+                    <div className="flex items-center gap-2 p-1.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10">
                         <Input
                             readOnly
                             value={postUrl}

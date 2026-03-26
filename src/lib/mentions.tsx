@@ -73,7 +73,7 @@ export function renderContentWithMentions(
         <span className={pillTextClass}>{username}</span>
         {opts?.canRemove && (
           <>
-            <span className="pointer-events-none absolute right-0 top-0 h-full w-6 rounded-r-full bg-gradient-to-l from-primary/10 to-transparent opacity-0 group-hover:opacity-100" />
+            <span className="pointer-events-none absolute right-0 top-0 h-full w-6 rounded-r-full bg-primary/10 opacity-0 group-hover:opacity-100" />
             <button
               type="button"
               title="Remove tag"

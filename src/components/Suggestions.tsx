@@ -11,7 +11,7 @@ interface SuggestionProfile {
     username: string;
     display_name: string | null;
     avatar_url: string | null;
-    is_verified?: boolean | null;
+    is_verified: boolean;
 }
 
 const Suggestions = () => {
@@ -52,7 +52,10 @@ const Suggestions = () => {
                     .select("user_id, username, display_name, avatar_url, is_verified")
                     .ilike("username", 'zeomatrixofficial')
                     .maybeSingle(); // Use maybeSingle to avoid errors if not found
-                if (featData) featured = featData as SuggestionProfile;
+                if (featData) featured = {
+                    ...featData,
+                    is_verified: !!featData.is_verified
+                } as SuggestionProfile;
             }
 
             // 2. Filter out already followed and current user, and also exclude zeomatrixofficial from the remaining list
@@ -120,7 +123,7 @@ const Suggestions = () => {
     if (!loading && suggestions.length === 0) return null;
 
     return (
-        <div className="bg-card/50 backdrop-blur-md border border-border rounded-3xl p-5 sticky top-24">
+        <div className="bg-background/60 backdrop-blur-xl border-2 border-border/50 rounded-3xl p-5 sticky top-24 shadow-2xl transition-all duration-300">
             <div className="flex items-center gap-2 mb-6 ml-1">
                 <Users className="w-5 h-5 text-primary" />
                 <h3 className="text-lg font-display font-bold text-foreground">Suggestions</h3>
@@ -132,8 +135,8 @@ const Suggestions = () => {
                         key={profile.user_id}
                         className="flex items-center justify-between group p-2 hover:bg-muted/30 rounded-2xl transition-all duration-300"
                     >
-                        <Link to={`/profile/${profile.user_id}`} className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className="w-12 h-12 rounded-full gradient-bg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 border-primary/20 group-hover:border-primary transition-colors">
+                        <Link to={`/profile/${profile.username}`} className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-12 h-12 rounded-full bg-primary flex-shrink-0 flex items-center justify-center overflow-hidden border-2 border-primary/20 group-hover:border-primary transition-colors">
                                 {profile.avatar_url ? (
                                     <img
                                         src={profile.avatar_url}
@@ -141,7 +144,7 @@ const Suggestions = () => {
                                         className="w-full h-full object-cover"
                                         onError={(e) => {
                                             (e.target as HTMLImageElement).style.display = 'none';
-                                            (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                                            (e.target as HTMLImageElement).parentElement?.classList.add('bg-primary');
                                             const span = document.createElement('span');
                                             span.className = "text-primary-foreground font-display font-bold text-sm";
                                             span.innerText = (profile.display_name || profile.username || "?")[0].toUpperCase();
@@ -157,7 +160,7 @@ const Suggestions = () => {
                             <div className="min-w-0">
                                 <p className="font-display font-bold text-foreground truncate text-[14px] flex items-center gap-1.5">
                                     <span className="truncate">{profile.display_name || profile.username}</span>
-                                    {profile.is_verified && <VerifiedBadge className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                                    {profile.is_verified && <VerifiedBadge className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
                                 </p>
                                 <p className="text-[12px] text-muted-foreground truncate">
                                     @{profile.username}
@@ -169,7 +172,7 @@ const Suggestions = () => {
                             onClick={() => toggleFollow(profile.user_id)}
                             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${followingIds.has(profile.user_id)
                                 ? "bg-muted text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
-                                : "gradient-bg text-white shadow-lg shadow-primary/20 hover:scale-110 active:scale-95"
+                                : "bg-primary text-white shadow-lg shadow-primary/20 hover:scale-110 active:scale-95"
                                 }`}
                         >
                             {followingIds.has(profile.user_id) ? <UserMinus className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}

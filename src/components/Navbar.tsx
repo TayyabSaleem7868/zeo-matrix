@@ -1,15 +1,16 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, PlusSquare, User, LogOut, Layout, Bell } from "lucide-react";
+import { Home, PlusSquare, User, LogOut, Layout, Bell, Settings as SettingsIcon } from "lucide-react";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUnreadNotificationsContext } from "@/contexts/UnreadNotificationsContext";
 
 const Navbar = () => {
     const { user, signOut } = useAuth();
     const location = useLocation();
     const [profile, setProfile] = useState<{ username: string; display_name: string | null; avatar_url: string | null; is_verified?: boolean } | null>(null);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const { unreadCount } = useUnreadNotificationsContext();
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -20,44 +21,16 @@ const Navbar = () => {
         fetchProfile();
     }, [user]);
 
-    useEffect(() => {
-        const fetchUnread = async () => {
-            if (!user) return;
-            const { count } = await supabase
-                .from("notifications")
-                .select("*", { count: "exact", head: true })
-                .eq("user_id", user.id)
-                .eq("is_read", false);
-            setUnreadCount(count ?? 0);
-        };
-
-        fetchUnread();
-
-        if (!user) return;
-        const channel = supabase
-            .channel(`notifications-unread-${user.id}`)
-            .on(
-                "postgres_changes",
-                { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-                () => fetchUnread()
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [user]);
-
     const links = [
         { to: "/feed", icon: Home, label: "Home" },
         { to: "/feed", icon: PlusSquare, label: "Create" },
-        ...(user?.id ? [{ to: `/profile/${user.id}`, icon: User, label: "Profile" }] : []),
+        ...(user?.id && profile?.username ? [{ to: `/profile/${profile.username}`, icon: User, label: "Profile" }] : []),
     ];
 
     return (
-        <nav className="fixed top-0 left-0 right-0 h-16 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/5 z-[100] px-4 md:px-8 flex items-center justify-between">
+        <nav className="fixed top-0 left-0 right-0 h-16 bg-background/60 backdrop-blur-xl border-b border-border/50 z-[100] px-4 md:px-8 flex items-center justify-between">
             <Link to="/feed" className="flex items-center gap-3 group">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                     <Layout className="w-5 h-5 text-white" />
                 </div>
                 <span className="font-display font-bold text-white text-lg tracking-tight hidden sm:block">
@@ -65,7 +38,7 @@ const Navbar = () => {
                 </span>
             </Link>
 
-            <div className="hidden md:flex items-center bg-white/5 rounded-full px-2 py-1 border border-white/5">
+            <div className="hidden md:flex items-center bg-background/40 backdrop-blur-lg rounded-full px-2 py-1 border border-border/50 shadow-inner">
                 {links.map((l) => {
                     const active = location.pathname === l.to;
                     return (
@@ -73,8 +46,8 @@ const Navbar = () => {
                             key={l.label}
                             to={l.to}
                             className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all ${active
-                                ? "bg-white/10 text-white shadow-sm"
-                                : "text-muted-foreground hover:text-white hover:bg-white/5"
+                                ? "bg-primary/20 text-white shadow-lg shadow-primary/10 border border-primary/20"
+                                : "text-muted-foreground hover:text-white hover:bg-background/40"
                                 }`}
                         >
                             <l.icon className="w-4 h-4" />
@@ -88,7 +61,7 @@ const Navbar = () => {
                 {user && (
                     <Link
                         to="/notifications"
-                        className="relative p-2 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
+                        className="relative p-2 rounded-full bg-background/40 backdrop-blur-lg border border-border/40 hover:bg-background/60 transition-colors shadow-lg shadow-black/5"
                         title="Notifications"
                     >
                         <Bell className="w-5 h-5 text-white" />
@@ -100,7 +73,7 @@ const Navbar = () => {
                     </Link>
                 )}
                 {user && (
-                    <div className="flex items-center gap-3 pl-3 pr-1 py-1 bg-white/5 rounded-full border border-white/5">
+                    <div className="flex items-center gap-3 pl-3 pr-1 py-1 bg-background/40 backdrop-blur-lg rounded-full border border-border/40 shadow-lg shadow-black/5">
                         <div className="w-7 h-7 rounded-full overflow-hidden border border-white/10 flex-shrink-0">
                             {profile?.avatar_url ? (
                                 <img
@@ -119,8 +92,15 @@ const Navbar = () => {
                         </div>
                         <span className="text-sm font-medium text-white hidden sm:flex items-center gap-1 truncate max-w-[120px]">
                             {profile?.display_name || profile?.username?.split("@")[0] || "User"}
-                            {profile?.is_verified && <VerifiedBadge className="w-3 h-3 text-blue-500 flex-shrink-0" />}
+                            {profile?.is_verified && <VerifiedBadge className="w-3 h-3 text-primary flex-shrink-0" />}
                         </span>
+                        <Link
+                            to="/settings"
+                            className="p-1.5 hover:bg-primary/10 hover:text-primary text-muted-foreground rounded-full transition-colors"
+                            title="Settings"
+                        >
+                            <SettingsIcon className="w-4 h-4" />
+                        </Link>
                         <button
                             onClick={signOut}
                             className="p-1.5 hover:bg-destructive/10 hover:text-destructive text-muted-foreground rounded-full transition-colors"

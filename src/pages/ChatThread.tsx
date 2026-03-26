@@ -24,6 +24,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useUnreadContext } from "@/contexts/UnreadMessagesContext";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -69,7 +70,7 @@ function InlineActions(props: {
   const { mine, canEdit, onReply, onEdit, onDeleteForMe, onUnsend } = props;
 
   return (
-    <div className="flex items-center gap-1 rounded-2xl border border-border/60 bg-background/80 backdrop-blur-md px-1.5 py-1 shadow-lg max-w-[calc(100vw-4rem)] overflow-x-auto no-scrollbar">
+    <div className="flex items-center gap-1 rounded-2xl border-2 border-border/50 bg-background/60 backdrop-blur-xl px-1.5 py-1 shadow-2xl max-w-[calc(100vw-4rem)] overflow-x-auto no-scrollbar">
       <Button variant="ghost" size="sm" className="h-8 rounded-xl shrink-0" onClick={onReply}>
         Reply
       </Button>
@@ -117,7 +118,7 @@ const ChatHeader = memo(({
   onBack: () => void;
   onClear: () => void;
 }) => (
-  <div className="flex items-center justify-between gap-3 mb-4">
+  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-background/60 backdrop-blur-xl border-b border-border/50 shadow-sm first:mt-0">
     <div className="flex items-center gap-2 min-w-0">
       <Button variant="ghost" size="icon" onClick={onBack} title="Back">
         <ArrowLeft className="w-5 h-5" />
@@ -134,14 +135,14 @@ const ChatHeader = memo(({
             </div>
           )}
           {otherReadAt && lastMessage && lastMessage.created_at <= otherReadAt && (
-            <p className="text-xs text-blue-400 font-medium">read</p>
+            <p className="text-xs text-primary font-medium">read</p>
           )}
         </div>
       </div>
     </div>
     <div className="flex items-center gap-2">
       <Button asChild variant="outline" size="sm">
-        <Link to={other?.user_id ? `/profile/${other.user_id}` : "/inbox"}>View profile</Link>
+        <Link to={other?.username ? `/profile/${other.username}` : "/inbox"}>View profile</Link>
       </Button>
       <Button variant="outline" size="sm" onClick={onClear} title="Clear chat">
         <Eraser className="w-4 h-4 mr-2" /> Clear
@@ -581,9 +582,9 @@ const ChatComposer = memo(({
   };
 
   return (
-    <div id="chat-composer" className="p-4 sm:p-4 border-t border-border/60 bg-background/40">
+    <div id="chat-composer" className="p-4 sm:p-4 border-t border-border/50 bg-background/60 backdrop-blur-xl">
       {(replyTo || editingMsg) && (
-        <div className="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-border/60 bg-card/40 px-3 py-2 animate-in slide-in-from-top-2 duration-200">
+        <div className="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-border/60 bg-background/60 backdrop-blur-xl px-3 py-2 animate-in slide-in-from-top-2 duration-200">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-0.5">{editingMsg ? "Editing message" : "Replying"}</p>
             <p className="text-sm text-muted-foreground truncate">{editingMsg ? editingMsg.content : replyTo?.content}</p>
@@ -726,7 +727,7 @@ const MessageItem = memo(({
   const audioRef = useRef<HTMLAudioElement>(null);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {isNewDay && (
         <div className="flex justify-center my-6 first:mt-2">
           <span className="px-3 py-1 rounded-full bg-muted/40 text-[11px] font-bold text-muted-foreground uppercase tracking-widest border border-border/40">
@@ -736,7 +737,7 @@ const MessageItem = memo(({
       )}
       <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
         <div
-          className="max-w-[85%] relative group rounded-2xl transition-colors"
+          className="max-w-[90%] relative group rounded-2xl transition-colors"
           onClick={(e) => { e.stopPropagation(); }}
           onDoubleClick={(e) => {
             if (isTouchLike) return;
@@ -760,8 +761,8 @@ const MessageItem = memo(({
           <div className={`flex items-start gap-2 ${mine ? "justify-end" : "justify-start"}`}>
             <div
               className={
-                `w-full rounded-2xl px-5 py-3 sm:px-4 sm:py-2 text-sm leading-relaxed transition-transform ` +
-                (mine ? "bg-primary text-primary-foreground" : "bg-muted/60 text-foreground border border-border/60")
+                `w-fit rounded-2xl px-5 py-3 sm:px-4 sm:py-2 text-sm leading-relaxed transition-transform ` +
+                (mine ? "bg-primary text-primary-foreground ml-auto" : "bg-muted/60 text-foreground border border-border/60 mr-auto")
               }
               style={isTouchLike ? { transform: `translateX(${swipeX}px)` } : undefined}
               onTouchStart={(e) => onSwipeStart(e, m.id)}
@@ -851,8 +852,8 @@ const MessageItem = memo(({
                   <span className="ml-1 flex items-center">
                     {otherReadAt && m.created_at <= otherReadAt ? (
                       <div className="flex -space-x-1">
-                        <Check className="w-2.5 h-2.5 text-blue-400" />
-                        <Check className="w-2.5 h-2.5 text-blue-400" />
+                        <Check className="w-2.5 h-2.5 text-primary" />
+                        <Check className="w-2.5 h-2.5 text-primary" />
                       </div>
                     ) : (
                       <Check className="w-2.5 h-2.5 opacity-50" />
@@ -944,10 +945,21 @@ export default function ChatThread() {
 
   const endRef = useRef<HTMLDivElement | null>(null);
   const convId = conversationId || "";
+  const { markConversationRead, lastIncomingMessage } = useUnreadContext();
 
+  // Mark this conversation as read immediately when opened
+  useEffect(() => {
+    if (convId) {
+      markConversationRead(convId);
+    }
+  }, [convId, markConversationRead]);
 
   const markRead = useCallback(async (msgId: string | null) => {
     if (!user || !convId || !msgId) return;
+    
+    // Clear global unread state for this conversation
+    markConversationRead(convId);
+
     const now = new Date().toISOString();
     setMyLastReadAt(now);
     await supabase
@@ -958,7 +970,7 @@ export default function ChatThread() {
         last_read_message_id: msgId,
         last_read_at: now,
       } as any);
-  }, [user?.id, convId]);
+  }, [user?.id, convId, markConversationRead]);
 
   useEffect(() => {
     const mq = typeof window !== "undefined" ? window.matchMedia("(hover: none), (pointer: coarse)") : null;
@@ -1075,15 +1087,43 @@ export default function ChatThread() {
     loadThread(true);
   }, [user?.id, convId]);
 
+  // Listen to incoming messages via global context to ensure synchronization
+  useEffect(() => {
+    if (lastIncomingMessage && lastIncomingMessage.conversation_id === convId) {
+       // Append immediately
+       setMessages(prev => {
+         if (prev.some(m => m.id === lastIncomingMessage.id)) return prev;
+         return [...prev, { ...lastIncomingMessage, message_reactions: [] }];
+       });
+       // Mark read to clear notification
+       markRead(lastIncomingMessage.id);
+       // Refresh to catch up with profile data/etc
+       loadThread(false, true);
+    }
+  }, [lastIncomingMessage, convId, markRead, loadThread]);
+
   useEffect(() => {
     if (!user || !convId) return;
 
     const channel = supabase
-      .channel(`thread-${convId}`)
+      .channel(`thread-sync-${convId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` },
-        () => loadThread(false)
+        { event: "UPDATE", schema: "public", table: "messages" },
+        (payload) => {
+          if (payload.new.conversation_id === convId) {
+            loadThread(false);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages" },
+        (payload) => {
+          if (payload.old.conversation_id === convId) {
+            loadThread(false);
+          }
+        }
       )
       .on(
         "postgres_changes",
@@ -1116,7 +1156,7 @@ export default function ChatThread() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, convId]);
+  }, [user?.id, convId, loadThread]);
 
   useEffect(() => {
     return () => {
@@ -1287,22 +1327,25 @@ export default function ChatThread() {
 
   return (
     <>
-      <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 flex flex-col h-[calc(100dvh-5rem)] md:h-[100dvh]">
-        <ChatHeader
-          title={title}
-          other={other}
-          otherTyping={otherTyping}
-          otherReadAt={otherReadAt}
-          lastMessage={messages.length > 0 ? messages[messages.length - 1] : null}
-          onBack={onBack}
-          onClear={clearChat}
-        />
-
-        <div className="flex-1 rounded-3xl border border-border bg-card/40 backdrop-blur-sm overflow-hidden flex flex-col min-h-0">
+      <div className="max-w-5xl mx-auto px-0 sm:px-4 py-0 sm:py-4 flex flex-col h-[calc(100dvh-5rem)] md:h-[100dvh]">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0 relative">
           <div
-            className="flex-1 overflow-y-auto px-4 py-5 sm:py-4 space-y-4 sm:space-y-2 min-h-0"
+            className="flex-1 overflow-y-auto min-h-0 no-scrollbar"
             onClick={() => setActionsForMessageId(null)}
           >
+            <div className="sticky top-0 z-20">
+              <ChatHeader
+                title={title}
+                other={other}
+                otherTyping={otherTyping}
+                otherReadAt={otherReadAt}
+                lastMessage={messages.length > 0 ? messages[messages.length - 1] : null}
+                onBack={onBack}
+                onClear={clearChat}
+              />
+            </div>
+
+            <div className="px-4 pb-5 sm:pb-4 space-y-1.5 min-h-0">
             {loading ? (
               <div className="flex justify-center py-16">
                 <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -1358,23 +1401,26 @@ export default function ChatThread() {
             <div ref={endRef} />
           </div>
 
-          <ChatComposer
-            user={user}
-            convId={convId}
-            replyTo={replyTo}
-            editingMsg={editingMsg}
-            setReplyTo={setReplyTo}
-            setEditingMsg={setEditingMsg}
-            onLoadThread={loadThread}
-            onShowMicDialog={() => {
-              if (!navigator.mediaDevices?.getUserMedia) {
-                setMicUnsupported(true);
-              } else {
-                setMicDenied(true);
-              }
-              setShowMicDialog(true);
-            }}
-          />
+          <div className="sticky bottom-0 z-20">
+            <ChatComposer
+              user={user}
+              convId={convId}
+              replyTo={replyTo}
+              editingMsg={editingMsg}
+              setReplyTo={setReplyTo}
+              setEditingMsg={setEditingMsg}
+              onLoadThread={loadThread}
+              onShowMicDialog={() => {
+                if (!navigator.mediaDevices?.getUserMedia) {
+                  setMicUnsupported(true);
+                } else {
+                  setMicDenied(true);
+                }
+                setShowMicDialog(true);
+              }}
+            />
+          </div>
+        </div>
         </div>
       </div>
 

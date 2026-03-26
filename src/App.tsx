@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
@@ -23,6 +24,9 @@ import FollowersList from "./pages/FollowersList";
 import FollowingList from "./pages/FollowingList";
 import Inbox from "./pages/Inbox";
 import ChatThread from "./pages/ChatThread";
+import Settings from "./pages/Settings";
+import { UnreadMessagesProvider } from "@/contexts/UnreadMessagesContext";
+import { UnreadNotificationsProvider } from "@/contexts/UnreadNotificationsContext";
 
 const queryClient = new QueryClient();
 
@@ -84,13 +88,14 @@ const AppContent = () => {
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/feed" element={<Feed />} />
         <Route path="/post/:postId" element={<PostDetail />} />
-        <Route path="/profile/:userId" element={<Profile />} />
-        <Route path="/profile/:userId/followers" element={<FollowersList />} />
-        <Route path="/profile/:userId/following" element={<FollowingList />} />
+        <Route path="/profile/:username" element={<Profile />} />
+        <Route path="/profile/:username/followers" element={<FollowersList />} />
+        <Route path="/profile/:username/following" element={<FollowingList />} />
         <Route path="/search" element={<SearchUsers />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/inbox/:conversationId" element={<ChatThread />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path={`/${ADMIN_ROUTE}`} element={<AdminPanel />} />
       <Route path="/banned" element={<Banned />} />
@@ -101,17 +106,23 @@ const AppContent = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <AdminAuthProvider>
-              <AppContent />
-          </AdminAuthProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme" attribute="class">
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <AdminAuthProvider>
+              <UnreadMessagesProvider>
+                <UnreadNotificationsProvider>
+                  <AppContent />
+                </UnreadNotificationsProvider>
+              </UnreadMessagesProvider>
+            </AdminAuthProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

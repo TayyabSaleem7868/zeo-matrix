@@ -28,7 +28,7 @@ const SuggestionsSection = () => {
   if (loading || suggestions.length === 0) return null;
 
   return (
-    <div className="bg-card/50 backdrop-blur-md border border-border rounded-3xl p-5 mb-6">
+    <div className="bg-background/60 backdrop-blur-xl border border-border/50 rounded-3xl p-5 mb-6">
       <div className="flex items-center gap-2 mb-4 ml-1">
         <h3 className="text-lg font-display font-bold text-foreground">Suggested For You</h3>
       </div>
@@ -39,7 +39,7 @@ const SuggestionsSection = () => {
             to={`/profile/${profile.user_id}`}
             className="flex items-center gap-3 min-w-0 group p-2 hover:bg-muted/30 rounded-2xl transition-all duration-300"
           >
-            <div className="w-12 h-12 rounded-full gradient-bg flex-shrink-0 flex items-center justify-center overflow-hidden border-2 border-primary/20 group-hover:border-primary transition-colors">
+            <div className="w-12 h-12 rounded-full bg-primary flex-shrink-0 flex items-center justify-center overflow-hidden border-2 border-primary/20 group-hover:border-primary transition-colors">
               {profile.avatar_url ? (
                 <img
                   src={profile.avatar_url}
@@ -47,7 +47,7 @@ const SuggestionsSection = () => {
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
-                    (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                    (e.target as HTMLImageElement).parentElement?.classList.add('bg-primary');
                     const span = document.createElement('span');
                     span.className = "text-primary-foreground font-display font-bold text-sm";
                     span.innerText = (profile.display_name || profile.username || "?")[0].toUpperCase();
@@ -63,7 +63,7 @@ const SuggestionsSection = () => {
             <div className="min-w-0">
               <p className="font-display font-bold text-foreground truncate text-[14px] flex items-center gap-1.5">
                 <span className="truncate">{profile.display_name || profile.username}</span>
-                {(profile as any).is_verified && <VerifiedBadge className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                {(profile as any).is_verified && <VerifiedBadge className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
               </p>
               <p className="text-[12px] text-muted-foreground truncate">@{profile.username}</p>
             </div>
@@ -140,9 +140,9 @@ const SearchUsers = () => {
         {results.map((r) => (
           <div
             key={r.user_id}
-            className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all font-display"
+            className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-background/60 backdrop-blur-xl border-2 border-border/50 hover:bg-background/40 hover:border-primary/30 transition-all font-display shadow-lg shadow-black/10"
           >
-            <Link to={`/profile/${r.user_id}`} className="flex items-center gap-3 min-w-0 flex-1">
+            <Link to={`/profile/${r.username}`} className="flex items-center gap-3 min-w-0 flex-1">
               <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center overflow-hidden flex-shrink-0">
                 {r.avatar_url ? (
                   <img
@@ -167,7 +167,7 @@ const SearchUsers = () => {
               <div className="min-w-0">
                 <p className="font-display font-medium text-foreground text-sm truncate flex items-center gap-1.5">
                   <span className="truncate">{r.display_name || r.username}</span>
-                  {r.is_verified && <VerifiedBadge className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                  {r.is_verified && <VerifiedBadge className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">@{r.username}</p>
               </div>

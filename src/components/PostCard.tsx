@@ -219,10 +219,10 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
   };
 
   return (
-    <div className="p-4 sm:p-5 rounded-[2rem] bg-card border border-border transition-all hover:bg-card/90 group/card shadow-sm">
+    <div className="p-4 sm:p-5 rounded-[2rem] bg-card/60 backdrop-blur-xl border-2 border-border/50 transition-all hover:bg-card/40 group/card shadow-2xl">
       <div className="flex items-center justify-between mb-4">
-        <Link to={`/profile/${post.user_id}`} className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center overflow-hidden border border-primary/20 shadow-sm">
+        <Link to={`/profile/${profile?.username}`} className="flex items-center gap-3 group">
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center overflow-hidden border border-primary/20 shadow-sm">
             {profile?.avatar_url ? (
               <img
                 src={profile.avatar_url}
@@ -230,7 +230,7 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
-                  (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                  (e.target as HTMLImageElement).parentElement?.classList.add('bg-primary');
                   const span = document.createElement('span');
                   span.className = "text-primary-foreground font-display font-bold text-sm";
                   span.innerText = (profile?.display_name || profile?.username || "?")[0].toUpperCase();
@@ -249,7 +249,7 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
                 {profile?.display_name || profile?.username?.split("@")[0] || "Unknown"}
               </p>
               {profile?.is_verified && (
-                <VerifiedBadge className="w-3.5 h-3.5 text-blue-500" />
+                <VerifiedBadge className="w-3.5 h-3.5 text-primary" />
               )}
             </div>
             <p className="text-[11px] sm:text-xs text-muted-foreground/70">
@@ -299,23 +299,23 @@ const PostCard = ({ post, profile, onDelete, initialLiked = false, initialLikeCo
                     ) : item.type === "pdf" ? (
                       <div className="flex flex-col items-center justify-center w-full h-40 bg-white" onClick={() => window.open(item.url, '_blank')} style={{ cursor: 'pointer' }}>
                         <span className="text-xs font-semibold">PDF</span>
-                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Open</a>
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open</a>
                       </div>
                     ) : item.type === "doc" || item.type === "docx" ? (
                       <div className="flex flex-col items-center justify-center w-full h-40 bg-white">
                         <span className="text-xs font-semibold">DOC{item.type === "docx" ? "X" : ""}</span>
-                        <a href={`https://docs.google.com/gview?url=${encodeURIComponent(item.url)}&embedded=true`} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a>
+                        <a href={`https://docs.google.com/gview?url=${encodeURIComponent(item.url)}&embedded=true`} target="_blank" rel="noopener noreferrer" className="text-primary underline">View</a>
                         <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-gray-600 underline text-xs mt-1">Download</a>
                       </div>
                     ) : item.type === "zip" || item.type === "rar" ? (
                       <div className="flex flex-col items-center justify-center w-full h-40 bg-white">
                         <span className="text-xs font-semibold">{item.type.toUpperCase()}</span>
-                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Download</a>
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Download</a>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center w-full h-40 bg-white">
                         <span className="text-xs font-semibold">File</span>
-                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Download</a>
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Download</a>
                       </div>
                     )}
                   </div>

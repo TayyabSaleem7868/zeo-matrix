@@ -11,6 +11,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { AlertTriangle } from "lucide-react";
 
 type NotificationRow = {
   id: string;
@@ -163,7 +175,6 @@ export default function Notifications() {
 
   const clearAll = async () => {
     if (!user || items.length === 0) return;
-    if (!confirm("Are you sure you want to clear all notifications? This action cannot be undone.")) return;
 
     setClearingAll(true);
     const previousItems = [...items];
@@ -225,24 +236,51 @@ export default function Notifications() {
               <TooltipContent>Mark all read</TooltipContent>
             </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={clearAll} 
-                  disabled={items.length === 0 || clearingAll}
-                  className="rounded-full w-9 h-9 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  {clearingAll ? (
-                    <div className="w-4 h-4 rounded-full border-2 border-muted-foreground border-t-transparent animate-spin" />
-                  ) : (
-                    <Brush className="w-4 h-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Clear all notifications</TooltipContent>
-            </Tooltip>
+            <AlertDialog>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      disabled={items.length === 0 || clearingAll}
+                      className="rounded-full w-9 h-9 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      {clearingAll ? (
+                        <div className="w-4 h-4 rounded-full border-2 border-muted-foreground border-t-transparent animate-spin" />
+                      ) : (
+                        <Brush className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Clear all notifications</TooltipContent>
+              </Tooltip>
+              <AlertDialogContent className="bg-background/60 backdrop-blur-xl border-border/50 border-2 rounded-3xl shadow-2xl animate-in fade-in zoom-in duration-300">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-xl font-bold font-display text-foreground flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-destructive/10">
+                      <AlertTriangle className="w-6 h-6 text-destructive" />
+                    </div>
+                    Clear All Notifications
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-muted-foreground/80 text-sm pt-2">
+                    This will permanently remove all notifications from your account. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="pt-6 gap-2 sm:gap-0">
+                  <AlertDialogCancel className="bg-white/5 backdrop-blur-md text-foreground hover:bg-white/10 rounded-2xl px-6 border border-white/5 transition-all font-semibold">
+                    Keep them
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={clearAll}
+                    className="bg-destructive text-white hover:bg-destructive/90 transition-all font-bold rounded-2xl px-8 shadow-lg shadow-destructive/20 border-0"
+                  >
+                    Clear everything
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </TooltipProvider>
         </div>
       </div>
@@ -252,7 +290,7 @@ export default function Notifications() {
           <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50">
+        <div className="text-center py-20 bg-background/30 backdrop-blur-xl rounded-3xl border-2 border-dashed border-border/50 shadow-inner">
           <p className="font-display text-lg text-muted-foreground">No notifications yet</p>
           <p className="text-sm text-muted-foreground/60 mt-1">Likes, comments, follows will show up here.</p>
           {debugMe && (
@@ -265,16 +303,17 @@ export default function Notifications() {
         <div className="space-y-3">
           {items.map((n) => {
             const actor = n.actor_id ? actors.get(n.actor_id) : null;
-            const to = n.post_id ? `/post/${n.post_id}` : actor?.user_id ? `/profile/${actor.user_id}` : "#";
+            const to = n.post_id ? `/post/${n.post_id}` : actor?.username ? `/profile/${actor.username}` : "#";
             return (
               <Link
                 key={n.id}
                 to={to}
                 onClick={() => markOneRead(n.id)}
-                className={`block p-4 rounded-2xl border transition-all ${n.is_read
-                    ? "bg-card border-border hover:border-primary/30"
-                    : "bg-primary/10 border-primary/30 hover:bg-primary/15"
-                  }`}
+                className={`block p-4 rounded-2xl border-2 transition-all backdrop-blur-xl ${
+                  n.is_read
+                    ? "bg-card/60 border-border/50 hover:bg-card/40"
+                    : "bg-primary/20 border-primary/40 hover:bg-primary/25 shadow-lg shadow-primary/5"
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10 flex-shrink-0">
@@ -285,7 +324,7 @@ export default function Notifications() {
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
-                          (e.target as HTMLImageElement).parentElement?.classList.add('gradient-bg');
+                          (e.target as HTMLImageElement).parentElement?.classList.add('bg-primary');
                           const span = document.createElement('span');
                           span.className = "text-[11px] font-bold text-white";
                           span.innerText = (actor?.display_name || actor?.username || "?")[0].toUpperCase();
@@ -293,7 +332,7 @@ export default function Notifications() {
                         }}
                       />
                     ) : (
-                      <div className="w-full h-full gradient-bg flex items-center justify-center">
+                      <div className="w-full h-full bg-primary flex items-center justify-center">
                         <span className="text-[11px] font-bold text-white">
                           {(actor?.display_name || actor?.username || "?")[0].toUpperCase()}
                         </span>

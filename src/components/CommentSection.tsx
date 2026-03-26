@@ -208,8 +208,8 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
         <div key={comment.id} className={`${isReply ? "ml-8 mt-3" : "mt-4"} first:mt-0 animate-fade-in`}>
             <div className="flex gap-3 group">
                 <Link
-                    to={`/profile/${comment.user_id}`}
-                    className={`${isReply ? "w-6 h-6" : "w-8 h-8"} rounded-full gradient-bg flex-shrink-0 flex items-center justify-center overflow-hidden ring-1 ring-border/30 hover:ring-primary/30 transition-colors`}
+                    to={`/profile/${comment.profile?.username}`}
+                    className={`${isReply ? "w-6 h-6" : "w-8 h-8"} rounded-full bg-primary flex-shrink-0 flex items-center justify-center overflow-hidden ring-1 ring-border/30 hover:ring-primary/30 transition-colors`}
                     title={comment.profile?.username ? `@${comment.profile.username}` : "View profile"}
                 >
                     {comment.profile?.avatar_url ? (
@@ -221,10 +221,10 @@ const CommentSection = ({ postId }: CommentSectionProps) => {
                     )}
                 </Link>
                 <div className="flex-1 min-w-0">
-                    <div className="bg-muted/50 p-3 rounded-2xl">
+                    <div className="bg-background/60 backdrop-blur-xl p-3 rounded-2xl border border-border/50 shadow-sm">
                         <div className="flex items-center justify-between mb-1">
                             <Link
-                                to={`/profile/${comment.user_id}`}
+                                to={`/profile/${comment.profile?.username}`}
                                 className="font-display font-medium text-foreground text-[12px] sm:text-[13px] hover:text-primary transition-colors truncate flex items-center gap-1"
                                 title="View profile"
                             >
