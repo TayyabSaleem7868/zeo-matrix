@@ -116,13 +116,13 @@ bun install
 
 ### Setup environment variables
 
-Copy the example environment file:
+Create an environment file:
 
 ```bash
-cp .env.example .env.local
+cp .env
 ```
 
-Then edit `.env.local` and provide the required values such as:
+Then edit `.env` and provide the required values such as:
 
 - Database connection string
 - Authentication secrets
