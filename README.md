@@ -167,7 +167,7 @@ https://vercel.com/new
 ```
 
 3. Import your repository
-4. Add environment variables from `.env.local`
+4. Add environment variables from `.env`
 5. Click **Deploy**
 
 Vercel automatically provides:
@@ -181,7 +181,7 @@ Vercel automatically provides:
 
 ## Author
 
-**Raja Tayyab Saleem**
+**Tayyab**
 
 If you like the project, consider ⭐ **starring the repository**!
 
