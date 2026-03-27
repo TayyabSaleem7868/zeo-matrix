@@ -100,7 +100,10 @@ const Feed = () => {
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage.nextOffset,
     enabled: !!user,
-    staleTime: 10_000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   const posts = useMemo(() => data?.pages.flatMap((p) => p.rows) ?? [], [data]);
@@ -153,7 +156,7 @@ const Feed = () => {
         <CreatePost onPostCreated={() => refetch()} />
 
         <div className="space-y-6">
-          {isLoading ? (
+          {isLoading && posts.length === 0 ? (
             <div className="flex justify-center py-20">
               <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
             </div>

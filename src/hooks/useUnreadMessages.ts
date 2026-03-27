@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -7,6 +7,7 @@ export function useUnreadMessages() {
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [mutedConversations, setMutedConversations] = useState<Set<string>>(new Set());
   const [lastIncomingMessage, setLastIncomingMessage] = useState<any>(null);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
 
   const loadUnread = useCallback(async () => {
     if (!user) {
@@ -76,6 +77,12 @@ export function useUnreadMessages() {
     loadUnread();
   }, [loadUnread]);
 
+  const activeConvIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeConvIdRef.current = activeConvId;
+  }, [activeConvId]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -84,17 +91,54 @@ export function useUnreadMessages() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
+        async (payload) => {
           const newMsg = payload.new as any;
-          if (newMsg.sender_id && newMsg.sender_id !== user.id) {
-            // Update unread counts
-            setUnreadCounts((prev) => {
-              const next = new Map(prev);
-              next.set(newMsg.conversation_id, (prev.get(newMsg.conversation_id) || 0) + 1);
-              return next;
+          if (newMsg.conversation_id) {
+            // Update unread counts if from SOMEONE ELSE
+            if (newMsg.sender_id !== user.id) {
+              setUnreadCounts((prev) => {
+                const next = new Map(prev);
+                next.set(newMsg.conversation_id, (prev.get(newMsg.conversation_id) || 0) + 1);
+                return next;
+              });
+            }
+
+            // Signal the message arrival globally (even if from us, to sync across tabs)
+            setLastIncomingMessage({ 
+              ...newMsg, 
+              _realtime_ts: Date.now() 
             });
-            // Signal the message arrival globally
-            setLastIncomingMessage(newMsg);
+
+            // Dispatch a browser event for direct, low-latency sync
+            window.dispatchEvent(new CustomEvent("zeo-new-message", { detail: newMsg }));
+
+            // Show toast if from OTHER and NOT in this conversation
+            const pathname = window.location.pathname.toLowerCase();
+            const msgConvId = String(newMsg.conversation_id || "").toLowerCase();
+            const isViewingThisChat = pathname.includes(msgConvId) && pathname.includes("/inbox/");
+
+            if (newMsg.sender_id !== user.id && !isViewingThisChat) {
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("display_name, username")
+                .eq("user_id", newMsg.sender_id)
+                .maybeSingle();
+
+              const senderName = profile?.display_name || profile?.username || "Someone";
+              
+              // Only toast if not muted
+              if (!mutedConversations.has(newMsg.conversation_id)) {
+                import("sonner").then(({ toast }) => {
+                  toast(senderName, {
+                    description: newMsg.content.slice(0, 60) + (newMsg.content.length > 60 ? "..." : ""),
+                    action: {
+                      label: "Reply",
+                      onClick: () => window.location.href = `/inbox/${newMsg.conversation_id}`,
+                    },
+                  });
+                });
+              }
+            }
           }
         }
       )
@@ -103,7 +147,7 @@ export function useUnreadMessages() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, mutedConversations]);
 
   const markConversationRead = useCallback((conversationId: string) => {
     setUnreadCounts((prev) => {
@@ -123,6 +167,8 @@ export function useUnreadMessages() {
     lastIncomingMessage,
     unreadConversationIds,
     totalUnread,
+    activeConvId,
+    setActiveConvId,
     markConversationRead,
     refreshUnread: loadUnread,
   };

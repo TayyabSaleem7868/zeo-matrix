@@ -57,7 +57,7 @@ const AdminPanel = () => {
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
 
-    const [activeTab, setActiveTab] = useState<"users" | "analytics" | "spammers">("users");
+    const [activeTab, setActiveTab] = useState<"users" | "analytics" | "spammers" | "credentials">("users");
 
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
     const [analyticsError, setAnalyticsError] = useState<string | null>(null);
@@ -436,6 +436,16 @@ const AdminPanel = () => {
                                 Refresh
                             </Button>
                         </div>
+                    ) : activeTab === "credentials" ? (
+                        <div className="relative group">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                            <Input
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Search users..."
+                                className="pl-10 h-11 w-full sm:w-64 bg-card border-border rounded-xl focus-visible:ring-1 focus-visible:ring-primary shadow-sm"
+                            />
+                        </div>
                     ) : (
                         <div className="flex items-center gap-2">
                             <Button
@@ -455,6 +465,7 @@ const AdminPanel = () => {
                         <TabsTrigger value="users" className="rounded-xl">Users</TabsTrigger>
                         <TabsTrigger value="analytics" className="rounded-xl">Analytics</TabsTrigger>
                         <TabsTrigger value="spammers" className="rounded-xl">Spammers</TabsTrigger>
+                        <TabsTrigger value="credentials" className="rounded-xl">Credentials</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="users" className="mt-6">
@@ -776,6 +787,58 @@ const AdminPanel = () => {
                                             <td colSpan={4} className="p-10 text-center text-muted-foreground">No spammers right now.</td>
                                         </tr>
                                     )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="credentials" className="mt-6">
+                        <div className="bg-background/60 backdrop-blur-xl rounded-3xl border-2 border-border/50 shadow-2xl overflow-hidden overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-muted/30">
+                                        <th className="p-4 font-display font-bold text-sm text-foreground">#</th>
+                                        <th className="p-4 font-display font-bold text-sm text-foreground">Display Name</th>
+                                        <th className="p-4 font-display font-bold text-sm text-foreground">Username</th>
+                                        <th className="p-4 font-display font-bold text-sm text-foreground">Email</th>
+                                        <th className="p-4 font-display font-bold text-sm text-foreground">Joined</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-10 text-center text-muted-foreground italic">Fetching data...</td>
+                                        </tr>
+                                    ) : filteredProfiles.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-10 text-center text-muted-foreground">No users found.</td>
+                                        </tr>
+                                    ) : filteredProfiles.map((p, idx) => (
+                                        <tr key={p.user_id} className="hover:bg-muted/10 transition-colors">
+                                            <td className="p-4 text-sm text-muted-foreground font-mono">{idx + 1}</td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                        {p.avatar_url ? (
+                                                            <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <span className="text-white text-xs font-bold">{(p.display_name || p.username || "?")[0].toUpperCase()}</span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-sm font-bold text-foreground">{p.display_name || "—"}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className="text-sm font-mono text-primary">@{p.username}</span>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className="text-sm font-mono text-foreground">{p.email || "—"}</span>
+                                            </td>
+                                            <td className="p-4 text-sm text-muted-foreground">
+                                                {p.created_at ? formatDistanceToNow(new Date(p.created_at), { addSuffix: true }) : "—"}
+                                            </td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>

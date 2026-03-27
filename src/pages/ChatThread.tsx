@@ -921,6 +921,7 @@ export default function ChatThread() {
   const [other, setOther] = useState<Profile | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [readyToShow, setReadyToShow] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
   const [myLastReadAt, setMyLastReadAt] = useState<string | null>(null);
   const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
@@ -945,14 +946,16 @@ export default function ChatThread() {
 
   const endRef = useRef<HTMLDivElement | null>(null);
   const convId = conversationId || "";
-  const { markConversationRead, lastIncomingMessage } = useUnreadContext();
-
+  const { markConversationRead, lastIncomingMessage, setActiveConvId } = useUnreadContext();
+  
   // Mark this conversation as read immediately when opened
   useEffect(() => {
     if (convId) {
       markConversationRead(convId);
+      setActiveConvId(convId);
     }
-  }, [convId, markConversationRead]);
+    return () => setActiveConvId(null);
+  }, [convId, markConversationRead, setActiveConvId]);
 
   const markRead = useCallback(async (msgId: string | null) => {
     if (!user || !convId || !msgId) return;
@@ -983,8 +986,8 @@ export default function ChatThread() {
     };
   }, []);
 
-  const scrollToBottom = () => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (smooth = true) => {
+    endRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "instant" });
   };
 
   const beginReply = (m: MessageRow) => {
@@ -1001,13 +1004,39 @@ export default function ChatThread() {
     if (!user || !convId) return;
     if (isInitial) setLoading(true);
     try {
-      const { data: mems, error: memErr } = await supabase
-        .from("conversation_members")
-        .select("conversation_id, user_id")
-        .eq("conversation_id", convId);
-      if (memErr) throw memErr;
+      // Fire membership check and messages query in parallel
+      const [memsRes, msgsRes] = await Promise.all([
+        supabase
+          .from("conversation_members")
+          .select("conversation_id, user_id")
+          .eq("conversation_id", convId),
+        supabase
+          .from("messages")
+          .select(`
+            id,
+            conversation_id,
+            sender_id,
+            content,
+            created_at,
+            is_deleted,
+            edited_at,
+            reply_to_message_id,
+            attachment_url,
+            attachment_type,
+            message_reactions (
+              emoji,
+              user_id
+            )
+          `)
+          .eq("conversation_id", convId)
+          .order("created_at", { ascending: true }),
+      ]);
 
-      const amMember = (mems || []).some((m: any) => m.user_id === user.id);
+      if (memsRes.error) throw memsRes.error;
+      if (msgsRes.error) throw msgsRes.error;
+
+      const mems = memsRes.data || [];
+      const amMember = mems.some((m: any) => m.user_id === user.id);
       if (!amMember) {
         toast({
           title: "No access",
@@ -1018,59 +1047,43 @@ export default function ChatThread() {
         return;
       }
 
-      const otherId = (mems || []).find((m: any) => m.user_id !== user.id)?.user_id as string | undefined;
-      if (otherId) {
-        const { data: prof, error: pErr } = await (supabase
-          .from("profiles")
-          .select("user_id, username, display_name, avatar_url, is_verified") as any)
-          .eq("user_id", otherId)
-          .maybeSingle();
-        if (!pErr) setOther(prof as any);
-
-        const { data: readState } = await (supabase
-          .from("message_user_state")
-          .select("last_read_at")
-          .eq("conversation_id", convId)
-          .eq("user_id", otherId)
-          .maybeSingle() as any);
-        if (readState) setOtherReadAt((readState as any).last_read_at);
-      }
-
-      const { data: msgs, error: msgErr } = await supabase
-        .from("messages")
-        .select(`
-          id,
-          conversation_id,
-          sender_id,
-          content,
-          created_at,
-          is_deleted,
-          edited_at,
-          reply_to_message_id,
-          attachment_url,
-          attachment_type,
-          message_reactions (
-            emoji,
-            user_id
-          )
-        `)
-        .eq("conversation_id", convId)
-        .order("created_at", { ascending: true })
-        .limit(200);
-      if (msgErr) throw msgErr;
-
-      const msgList = (msgs || []).map((m: any) => ({
+      // Set messages immediately so UI renders fast
+      const msgList = (msgsRes.data || []).map((m: any) => ({
         ...m,
         reactions: m.message_reactions || []
       })) as MessageRow[];
       setMessages(msgList);
 
+      if (isInitial || forceScroll) {
+        setTimeout(() => {
+          scrollToBottom(!isInitial);
+          setReadyToShow(true);
+        }, 20);
+      }
+
+      // Fire profile & read state queries in background (non-blocking)
+      const otherId = mems.find((m: any) => m.user_id !== user.id)?.user_id as string | undefined;
+      if (otherId) {
+        Promise.all([
+          (supabase
+            .from("profiles")
+            .select("user_id, username, display_name, avatar_url, is_verified") as any)
+            .eq("user_id", otherId)
+            .maybeSingle(),
+          (supabase
+            .from("message_user_state")
+            .select("last_read_at")
+            .eq("conversation_id", convId)
+            .eq("user_id", otherId)
+            .maybeSingle() as any),
+        ]).then(([profRes, readRes]) => {
+          if (!profRes.error && profRes.data) setOther(profRes.data as any);
+          if (readRes.data) setOtherReadAt((readRes.data as any).last_read_at);
+        });
+      }
+
       const lastMsg = msgList.length ? msgList[msgList.length - 1] : null;
       if (lastMsg) markRead(lastMsg.id);
-
-      if (isInitial || forceScroll) {
-        requestAnimationFrame(() => scrollToBottom());
-      }
     } catch (e: any) {
       console.error(e);
       toast({
@@ -1087,20 +1100,40 @@ export default function ChatThread() {
     loadThread(true);
   }, [user?.id, convId]);
 
-  // Listen to incoming messages via global context to ensure synchronization
+  // Direct Browser Event Listener (The most reliable sync method)
   useEffect(() => {
-    if (lastIncomingMessage && lastIncomingMessage.conversation_id === convId) {
-       // Append immediately
+    const handleNewZeoMessage = (e: any) => {
+      const newMsg = e.detail;
+      const msgConvId = String(newMsg?.conversation_id || "").toLowerCase();
+      const activeId = String(convId).toLowerCase();
+
+      if (msgConvId === activeId) {
+         console.log("REALTIME: Received message for active chat:", newMsg.id);
+         setMessages(prev => {
+           if (prev.some(m => m.id === newMsg.id)) return prev;
+           return [...prev, { ...newMsg, reactions: [] }];
+         });
+         markRead(newMsg.id);
+         setTimeout(() => scrollToBottom(true), 50);
+      }
+    };
+
+    window.addEventListener("zeo-new-message", handleNewZeoMessage);
+    return () => window.removeEventListener("zeo-new-message", handleNewZeoMessage);
+  }, [convId, markRead]);
+
+  // Sync from context (Redundant fallback)
+  useEffect(() => {
+    const rawId = lastIncomingMessage?.conversation_id;
+    if (rawId && String(rawId).toLowerCase() === String(convId).toLowerCase()) {
        setMessages(prev => {
          if (prev.some(m => m.id === lastIncomingMessage.id)) return prev;
-         return [...prev, { ...lastIncomingMessage, message_reactions: [] }];
+         return [...prev, { ...lastIncomingMessage, reactions: [] }];
        });
-       // Mark read to clear notification
        markRead(lastIncomingMessage.id);
-       // Refresh to catch up with profile data/etc
-       loadThread(false, true);
+       setTimeout(() => scrollToBottom(true), 50);
     }
-  }, [lastIncomingMessage, convId, markRead, loadThread]);
+  }, [lastIncomingMessage, convId, markRead]);
 
   useEffect(() => {
     if (!user || !convId) return;
@@ -1109,10 +1142,28 @@ export default function ChatThread() {
       .channel(`thread-sync-${convId}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const newMsg = payload.new as any;
+          const msgConvId = String(newMsg.conversation_id || "").toLowerCase();
+          const activeId = String(convId).toLowerCase();
+
+          if (msgConvId === activeId) {
+            setMessages(prev => {
+              if (prev.some(m => m.id === newMsg.id)) return prev;
+              return [...prev, { ...newMsg, reactions: [] }];
+            });
+            markRead(newMsg.id);
+            setTimeout(() => scrollToBottom(true), 30);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` },
         (payload) => {
           if (payload.new.conversation_id === convId) {
-            loadThread(false);
+            setMessages(prev => prev.map(m => m.id === (payload.new as any).id ? { ...m, ...(payload.new as any), reactions: m.reactions } : m));
           }
         }
       )
@@ -1345,8 +1396,8 @@ export default function ChatThread() {
               />
             </div>
 
-            <div className="px-4 pb-5 sm:pb-4 space-y-1.5 min-h-0">
-            {loading ? (
+            <div className={`px-4 pb-5 sm:pb-4 space-y-1.5 min-h-0 transition-opacity duration-75 ${readyToShow ? 'opacity-100' : 'opacity-0'}`}>
+            {loading && messages.length === 0 ? (
               <div className="flex justify-center py-16">
                 <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
               </div>

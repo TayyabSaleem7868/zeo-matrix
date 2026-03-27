@@ -28,7 +28,13 @@ import Settings from "./pages/Settings";
 import { UnreadMessagesProvider } from "@/contexts/UnreadMessagesContext";
 import { UnreadNotificationsProvider } from "@/contexts/UnreadNotificationsContext";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const ADMIN_ROUTE = import.meta.env.VITE_ADMIN_ROUTE || "secret-admin-access-x9z";
 

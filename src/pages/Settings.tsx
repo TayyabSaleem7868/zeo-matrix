@@ -67,6 +67,36 @@ const Settings = () => {
     }
   };
 
+  const toggleHideFollowers = async (checked: boolean) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ hide_followers: checked } as any)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setProfile({ ...profile, hide_followers: checked });
+      toast({ title: checked ? "Followers hidden" : "Followers visible" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to update followers privacy", variant: "destructive" });
+    }
+  };
+
+  const toggleHideFollowing = async (checked: boolean) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ hide_following: checked } as any)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setProfile({ ...profile, hide_following: checked });
+      toast({ title: checked ? "Following hidden" : "Following visible" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to update following privacy", variant: "destructive" });
+    }
+  };
+
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
     try {
@@ -146,8 +176,34 @@ const Settings = () => {
                 </p>
               </div>
               <Switch 
-                checked={profile?.is_private} 
+                checked={profile?.is_private || false} 
                 onCheckedChange={togglePrivate}
+              />
+            </div>
+            
+            <div className="flex items-center justify-between pt-6 border-t border-border/20 mt-6">
+              <div className="max-w-[80%]">
+                <p className="text-sm font-bold text-foreground">Hide Followers List</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Prevent others from seeing who follows you.
+                </p>
+              </div>
+              <Switch 
+                checked={profile?.hide_followers || false} 
+                onCheckedChange={toggleHideFollowers}
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-6 border-t border-border/20 mt-6">
+              <div className="max-w-[80%]">
+                <p className="text-sm font-bold text-foreground">Hide Following List</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Prevent others from seeing who you follow.
+                </p>
+              </div>
+              <Switch 
+                checked={profile?.hide_following || false} 
+                onCheckedChange={toggleHideFollowing}
                 className="data-[state=checked]:bg-primary"
               />
             </div>

@@ -40,6 +40,9 @@ interface ProfileData {
   is_verified?: boolean;
   is_private?: boolean;
   followers_bonus?: number;
+  is_banned?: boolean | null;
+  hide_followers?: boolean;
+  hide_following?: boolean;
 }
 
 const Profile = () => {
@@ -398,7 +401,7 @@ const Profile = () => {
     }
   };
 
-  if (loading) {
+  if (loading && !profile) {
     return (
       <div className="flex justify-center py-20">
         <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -586,16 +589,34 @@ const Profile = () => {
         )}
 
         <div className="flex flex-wrap gap-6 mt-6 pb-2">
-          <Link to={`/profile/${profile.username}/following`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
-            <span className="text-base font-bold text-foreground tracking-tight">{followingCount}</span>
-            <span className="text-sm text-muted-foreground font-medium">Following</span>
-          </Link>
-          <Link to={`/profile/${profile.username}/followers`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
-            <span className="text-base font-bold text-foreground tracking-tight">
-              {formatNumber(followersCount + (profile?.followers_bonus || 0))}
-            </span>
-            <span className="text-sm text-muted-foreground font-medium">Followers</span>
-          </Link>
+          {!isOwner && profile.hide_following ? (
+            <div className="flex gap-1.5 items-baseline cursor-default select-none" title="This user has hidden their following list">
+              <span className="text-base font-bold text-foreground tracking-tight">{followingCount}</span>
+              <span className="text-sm text-muted-foreground font-medium">Following</span>
+            </div>
+          ) : (
+            <Link to={`/profile/${profile.username}/following`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
+              <span className="text-base font-bold text-foreground tracking-tight">{followingCount}</span>
+              <span className="text-sm text-muted-foreground font-medium">Following</span>
+            </Link>
+          )}
+
+          {!isOwner && profile.hide_followers ? (
+            <div className="flex gap-1.5 items-baseline cursor-default select-none" title="This user has hidden their followers list">
+              <span className="text-base font-bold text-foreground tracking-tight">
+                {formatNumber(followersCount + (profile?.followers_bonus || 0))}
+              </span>
+              <span className="text-sm text-muted-foreground font-medium">Followers</span>
+            </div>
+          ) : (
+            <Link to={`/profile/${profile.username}/followers`} className="flex gap-1.5 items-baseline hover:opacity-80 transition-opacity">
+              <span className="text-base font-bold text-foreground tracking-tight">
+                {formatNumber(followersCount + (profile?.followers_bonus || 0))}
+              </span>
+              <span className="text-sm text-muted-foreground font-medium">Followers</span>
+            </Link>
+          )}
+
           <div className="flex gap-1.5 items-baseline">
             <span className="text-base font-bold text-foreground tracking-tight">{posts.length}</span>
             <span className="text-sm text-muted-foreground font-medium">Posts</span>

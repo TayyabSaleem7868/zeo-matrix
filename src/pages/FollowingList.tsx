@@ -13,6 +13,8 @@ type ProfileRow = {
   avatar_url: string | null;
   is_verified?: boolean | null;
   is_private?: boolean | null;
+  hide_followers?: boolean | null;
+  hide_following?: boolean | null;
 };
 
 export default function FollowingList() {
@@ -36,9 +38,10 @@ export default function FollowingList() {
 
   const canView = useMemo(() => {
     if (!owner) return true;
-    if (!owner.is_private) return true;
     if (user?.id === owner.user_id) return true;
-    return false;
+    if (owner.hide_following) return false;
+    if (owner.is_private) return false;
+    return true;
   }, [owner, user?.id]);
 
   useEffect(() => {
@@ -48,7 +51,7 @@ export default function FollowingList() {
       try {
         const { data: ownerProfile, error: oErr } = await supabase
           .from("profiles")
-          .select("user_id, username, display_name, avatar_url, is_verified, is_private")
+          .select("user_id, username, display_name, avatar_url, is_verified, is_private, hide_followers, hide_following")
           .eq("username", username)
           .maybeSingle();
         if (oErr) throw oErr;
