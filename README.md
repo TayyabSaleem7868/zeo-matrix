@@ -2,6 +2,8 @@
 ![React](https://img.shields.io/badge/React-19-blue)
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-38BDF8)
 # Zeo Matrix
+!IMPORTANT NOTE!
+The project is no longer maintained by Tayyab that may cause authentication flaws as far the Supabase project needs to be resume and it is no longer maintained.
 
 > **Connect with family and friends. Share your world securely.**
 
